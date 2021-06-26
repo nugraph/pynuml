@@ -2,7 +2,7 @@ import h5py, numpy as np, pandas as pd
 
 class NuMLFile:
   def __init__(self, file):
-    self._file = h5py.File(file)
+    self._file = h5py.File(file, "r")
     self._colmap = {
       "event_table": {
         "nu_dir": [ "nu_dir_x", "nu_dir_y", "nu_dir_z" ],
