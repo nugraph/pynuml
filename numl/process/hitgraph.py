@@ -1,12 +1,10 @@
 import pandas as pd, torch
-from ..labels import ccqe
-from ..graph import edges
+from ..core.file import NuMLFile
+from ..labels import *
+from ..graph import *
 
-node_feats = ["global_plane", "global_wire", "global_time", "tpc",
-  "local_plane", "local_wire", "local_time", "integral", "rms"]
-
-def ccqe_window_graph(key, out, hit, part, edep):
-
+def single_plane_graph(key, out, hit, part, edep, l=ccqe, e=edges.window_edges):
+  """Process an event into graphs"""
   # skip any events with no simulated hits
   if (hit.index==key).sum() == 0: return
   if (edep.index==key).sum() == 0: return
@@ -22,7 +20,7 @@ def ccqe_window_graph(key, out, hit, part, edep):
 
   # get labels for each particle
   evt_part = part.loc[key].reset_index(drop=True)
-  evt_part = ccqe.hit_label(evt_part)
+  evt_part = l.hit_label(evt_part)
 
   # join the dataframes to transform particle labels into hit labels
   evt_hit = evt_hit.merge(evt_part.drop(["parent_id", "type"], axis=1), on="g4_id", how="inner")
@@ -34,13 +32,29 @@ def ccqe_window_graph(key, out, hit, part, edep):
     plane = plane.reset_index(drop=True).reset_index()
 
     # Build and label edges
-    edge = edges.window_edges(plane)
-    edge = ccqe.edge_label(edge)
+    edge = e(plane)
+    edge = l.edge_label(edge)
 
     # Save to file
+    node_feats = ["global_plane", "global_wire", "global_time", "tpc",
+      "local_plane", "local_wire", "local_time", "integral", "rms"]
     graph_dict = {
       "x": torch.tensor(plane[node_feats].to_numpy()).float(),
       "edge_index": torch.tensor(edge[["idx_1", "idx_2"]].to_numpy().T).long(),
       "y": torch.tensor(edge["label"].to_numpy()).long()
     }
     torch.save(graph_dict, f"{out}/r{key[0]}_sr{key[1]}_evt{key[2]}_p{p}.pt")
+
+def process_file(out, fname, g=single_plane_graph, l=ccqe, e=edges.window_edges):
+  """Process all events in a file into graphs"""
+  f = NuMLFile(fname)
+
+  evt = f.get_dataframe("event_table", ["event_id"])
+  hit = f.get_dataframe("hit_table")
+  part = f.get_dataframe("particle_table", ["event_id", "g4_id", "parent_id", "type"])
+  edep = f.get_dataframe("edep_table")
+
+  # loop over events in file
+  for key in evt.index: g(key, out, hit, part, edep, l, e)
+
+
