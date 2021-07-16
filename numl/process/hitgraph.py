@@ -1,9 +1,10 @@
 import pandas as pd, torch
 from ..core.file import NuMLFile
+from ..core.out import H5Out
 from ..labels import *
 from ..graph import *
 
-def single_plane_graph(key, out, hit, part, edep, l=ccqe, e=edges.window_edges):
+def single_plane_graph(out, key, hit, part, edep, l=ccqe, e=edges.window_edges):
   """Process an event into graphs"""
   # skip any events with no simulated hits
   if (hit.index==key).sum() == 0: return
@@ -43,7 +44,7 @@ def single_plane_graph(key, out, hit, part, edep, l=ccqe, e=edges.window_edges):
       "edge_index": torch.tensor(edge[["idx_1", "idx_2"]].to_numpy().T).long(),
       "y": torch.tensor(plane["label"].to_numpy()).long()
     }
-    torch.save(graph_dict, f"{out}/r{key[0]}_sr{key[1]}_evt{key[2]}_p{p}.pt")
+    out.save(graph_dict, f"r{key[0]}_sr{key[1]}_evt{key[2]}_p{p}")
 
 def process_file(out, fname, g=single_plane_graph, l=ccqe, e=edges.window_edges):
   """Process all events in a file into graphs"""
@@ -56,6 +57,5 @@ def process_file(out, fname, g=single_plane_graph, l=ccqe, e=edges.window_edges)
   edep = f.get_dataframe("edep_table")
 
   # loop over events in file
-  for key in evt.index: g(key, out, hit, part, edep, l, e)
-
+  for key in evt.index: g(out, key, hit, part, edep, l, e)
 

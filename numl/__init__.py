@@ -1,3 +1,3 @@
-from .core.file import NuMLFile
+from .core import *
 from .process import *
 from .plot import *
