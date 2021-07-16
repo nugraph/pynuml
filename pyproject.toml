@@ -1,0 +1,8 @@
+[build-system]
+requires = [
+  "setuptools>=42",
+  "wheel",
+  "pandas>=1.2.0",
+  "h5py"
+]
+build-backend = "setuptools.build_meta"
