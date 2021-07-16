@@ -41,12 +41,13 @@ def single_plane_graph(key, out, hit, part, edep, l=ccqe, e=edges.window_edges):
     graph_dict = {
       "x": torch.tensor(plane[node_feats].to_numpy()).float(),
       "edge_index": torch.tensor(edge[["idx_1", "idx_2"]].to_numpy().T).long(),
-      "y": torch.tensor(edge["label"].to_numpy()).long()
+      "y": torch.tensor(plane["label"].to_numpy()).long()
     }
     torch.save(graph_dict, f"{out}/r{key[0]}_sr{key[1]}_evt{key[2]}_p{p}.pt")
 
 def process_file(out, fname, g=single_plane_graph, l=ccqe, e=edges.window_edges):
   """Process all events in a file into graphs"""
+  print("change successful")
   f = NuMLFile(fname)
 
   evt = f.get_dataframe("event_table", ["event_id"])
