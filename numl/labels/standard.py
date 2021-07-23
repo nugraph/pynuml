@@ -1,4 +1,4 @@
-def semantic_label(part):
+def hit_label(part):
   # get primary for each particle
   part = part.set_index("g4_id", drop=False)
 
@@ -21,7 +21,7 @@ def semantic_label(part):
   part["label"] = part.apply(func, axis=1)
   return part.reset_index(drop=True)
 
-def hit_label(part):
+def semantic_label(part):
   # get primary for each particle
   part = part.set_index("g4_id", drop=False)
 
