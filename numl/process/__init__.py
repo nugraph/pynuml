@@ -1,1 +1,1 @@
-__all__ = [ "hitgraph" ]
+__all__ = [ "hitgraph", "spmap" ]

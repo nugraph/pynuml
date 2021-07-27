@@ -3,7 +3,7 @@ from ..core.file import NuMLFile
 from ..labels import *
 from ..graph import *
 
-def single_plane_graph(out, key, hit, part, edep, l=ccqe, e=edges.window_edges):
+def process_event_singleplane(out, key, hit, part, edep, l=ccqe, e=edges.window_edges):
   """Process an event into graphs"""
   # skip any events with no simulated hits
   if (hit.index==key).sum() == 0: return
@@ -46,7 +46,7 @@ def single_plane_graph(out, key, hit, part, edep, l=ccqe, e=edges.window_edges):
     }
     out.save(tg.data.Data(**graph_dict), f"r{key[0]}_sr{key[1]}_evt{key[2]}_p{p}")
 
-def process_file(out, fname, g=single_plane_graph, l=ccqe, e=edges.window_edges):
+def process_file(out, fname, g=process_event_singleplane, l=ccqe, e=edges.window_edges):
   """Process all events in a file into graphs"""
   f = NuMLFile(fname)
 

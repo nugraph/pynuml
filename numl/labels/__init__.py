@@ -1,1 +1,1 @@
-__all__ = [ "ccqe" ]
+__all__ = [ "standard", "ccqe" ]
