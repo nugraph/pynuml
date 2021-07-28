@@ -1,75 +1,75 @@
-def walk(row, part, depth, label):
-  ret = -1
-  if label is not None: ret = label # inherit from parent
-  else:
-    if abs(row.type) == 211:  ret = 0 # charged pion
-    if abs(row.type) == 13:   ret = 1 # muon
-    if abs(row.type) == 321:  ret = 2 # charged kaon
-    if abs(row.type) == 2212: ret = 3 # proton
-    if row.type == 22: # photon
-      if part.type[row.parent_id] == 111 and row.end_process == b'conv':
-        ret = 4 # shower
-        label = 4 # propagate to children
-  offset = ""
-  for i in range(depth): offset += " "
-  # if row.label == -1: 
-  print(f"{offset}depth {depth}: particle {row.g4_id} with label {ret}, type {row.type}, start process {row.start_process}, end process {row.end_process}, momentum {row.momentum}")
-  part = part[(part.parent_id==row.g4_id)].apply(walk, args=(part, depth+1, label), axis=1)
-  return ret
+import enum
+class label(enum.Enum):
+  pion = 0
+  muon = 1
+  kaon = 2
+  hadron = 3
+  shower = 4
+  michel = 5
+  delta = 6
+  diffuse = 7
+  invisible = 8
 
+from functools import wraps
+from time import time
+
+def timing(f):
+  @wraps(f)
+  def wrap(*args, **kw):
+    ts = time()
+    result = f(*args, **kw)
+    te = time()
+    print('func:%r args:[%r, %r] took: %2.4f sec' % \
+      (f.__name__, args, kw, te-ts))
+    return result
+  return wrap
+
+@timing
 def semantic_label(part):
-  part["label"] = -1
+
+  def walk(part, particles, depth, parent_label):
+
+    import particle
+    l = -1 if parent_label is None else parent_label # inherit from parent
+    if l == -1:
+      parent_type = 0 if part.parent_id == 0 else particles.type[part.parent_id]
+      if abs(part.type) == 211:  l = label.pion.value
+      if abs(part.type) == 13:   l = label.muon.value
+      if abs(part.type) == 321:  l = label.kaon.value
+      if abs(part.type) == 2212 or particle.pdgid.is_nucleus(part.type): l = label.hadron.value
+      if part.type == 2112:
+        l = label.diffuse.value
+        parent_label = label.diffuse.value # propagate to children
+      if part.type == 22:
+        if part.end_process == b'conv':
+          l = label.shower.value
+          parent_label = label.shower.value # propagate to children
+        if part.start_process == b'eBrem' or part.end_process == b'phot':
+          l = label.diffuse.value
+          parent_label = label.diffuse.value #propagate to children
+      if abs(part.type) == 11:
+        if abs(parent_type) == 13 and (part.start_process == b'muMinusCaptureAtRest' or part.start_process == b'muPlusCaptureAtRest'):
+          l = label.michel.value
+        if part.end_process == b'muIoni' or part.end_process == b'hIoni' or part.end_process == b'eIoni':
+          l = label.delta.value
+        if part.end_process == b'StepLimiter' or part.end_process == b'annihil' or part.end_process == b'eBrem':
+          l = label.diffuse.value # is this right?
+      if part.type == 111: l = label.invisible.value
+    offset = ""
+    for i in range(depth): offset += " "
+    if l == -1:
+      print(f"{offset}depth {depth}: particle {part.g4_id} with label {l}, type {part.type}, start process {part.start_process}, end process {part.end_process}, momentum {part.momentum}")
+      raise Exception("unknown particle!")
+    ret = [ { "g4_id": part.g4_id, "semantic_label": l } ]
+    for _, row in particles[(part.g4_id==particles.parent_id)].iterrows():
+      ret += walk(row, particles, depth+1, parent_label)
+    return ret
+    
+  ret = []
   part = part.set_index("g4_id", drop=False)
-  print(part)
-  primaries = part[(part.parent_id == 0)]
-  print(primaries)
+  primaries = part[(part.parent_id==0)]
+  for _, primary in primaries.iterrows():
+    ret += walk(primary, part, 0, None)
+  import pandas as pd
+  return part.reset_index(drop=True).merge(pd.DataFrame.from_dict(ret), on="g4_id", how="left")
 
-  part = part[(part.parent_id==0)].apply(walk, args=(part, 0, None), axis=1)
-
-  import numpy as np
-  return np.ones(part.shape[0])
-
-# get primary for each particle
-#  part = part.set_index("g4_id", drop=False)
-
-#  # convert from PDG code to label
-#  def label(pdg):
-#    if abs(pdg) == 211: return 0 # pion  
-#    elif abs(pdg) == 13: return 1 # muon
-#    elif abs(pdg) == 321: return 2 # kaons
-#    elif abs(pdg) == 2212: return 3 # proton
-#    elif abs(pdg) == 11 or abs(pdg) == 22: 
-#      return 4 # shower
-
-  # trace lineage back from particle to primary and get label
-#  def func(row):
-#    gid = row.g4_id
-#    pid = row.parent_id
-#    while True:
-#      if pid == 0: return label(part.type[gid])
-#      gid = part.g4_id[pid]
-#      pid = part.parent_id[pid]
-
-  # apply backtrace function to get labels
-#  part["label"] = part.apply(func, axis=1)
-#  return part.reset_index(drop=True)
-
-def edge_label(edge):
-
-  # False
-  edge["label"] = 0
-
-  # EM shower
-  mask_e = (edge.label_1 == 0) & (edge.label_2 == 0)
-  edge.loc[mask_e, "label"] = 1
-
-  # Muon
-  mask_part = (edge.g4_id_1 == edge.g4_id_2)
-  mask_mu = (edge.label_1 == 1) & (edge.label_2 == 1)
-  edge.loc[mask_part & mask_mu, "label"] = 2
-
-  # Hadronic
-  mask_had = (edge.label_1 == 2) & (edge.label_2 == 2)
-  edge.loc[mask_part & mask_had, "label"] = 3
-
-  return edge

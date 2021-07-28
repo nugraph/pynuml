@@ -1,77 +1,90 @@
-import pandas as pd, torch, torch_geometric as tg
 from ..core.file import NuMLFile
 from ..labels import *
 from ..graph import *
 
-def process_event(out, key, sp, hit, part, edep, l=standard):
-  """Process an event into graphs"""
+def process_event(key, out, sp, hit, part, edep, l=standard, voxelsize=1):
+  """Process an event into a 3D pixel map"""
+  import numpy as np, torch, MinkowskiEngine as ME
+
   # skip any events with no simulated hits
   if (hit.index==key).sum() == 0: return
   if (edep.index==key).sum() == 0: return
 
   # label true particles
   evt_part = part.loc[key].reset_index(drop=True)
-  evt_part["label_semantic"] = l.semantic_label(evt_part)
+  evt_part = l.semantic_label(evt_part)
 
-  print(evt_part)
-
-  # get energy depositions, find max contributing particle, and ignore any hits with no truth
+  # get energy depositions and ground truth
   evt_edep = edep.loc[key].reset_index(drop=True)
-#  print(evt_edep)
+  evt_edep = evt_edep.merge(evt_part[["g4_id", "semantic_label"]], on="g4_id", how="left").drop("g4_id", axis="columns")
+  scores = evt_edep.groupby(["hit_id", "semantic_label"]).agg({"energy": "sum"}).reset_index()
 
-  def test(df):
-    print(df)
-#    df = df.groupby("g4_id")
-#    print(df)
-#    exit(0)
+  def fractional_truth(row, n):
+    label = np.zeros(n)
+    label[int(row.semantic_label)] = row.energy
+    return label
 
-  grouped = evt_edep.groupby("hit_id")
-#  grouped.agg(test)
+  # class number and names
+  n = len(l.label) - 1
+  lnames = [ it.name for it in l.label ][:-1]
+  noise = np.zeros(n)
+  noise[l.label.diffuse.value] = 1
 
-#  evt_edep = evt_edep.groupby("hit_id") #pipe(test)
-#  evt_edep.groupby("hit_id").agg(test)
+  scores["slabel"] = scores.apply(fractional_truth, args=[n], axis="columns")
+  scores = scores.groupby("hit_id").agg({"slabel": "sum"})
 
-  # now we need to turn this into a fractional ground truth
-  # evt_edep = evt_edep.loc[evt_edep.groupby("hit_id")["energy_fraction"].idxmax()]
-  # evt_hit = evt_edep.merge(hit.loc[key].reset_index(), on="hit_id", how="inner").drop("energy_fraction", axis=1)
-
+  # Propagate labels to hits
+  evt_hit = hit.loc[key].reset_index(drop=True).merge(scores, on="hit_id", how="inner")
   evt_sp = sp.loc[key].reset_index(drop=True)
 
   # skip events with fewer than 50 simulated hits in any plane, or fewer than 50 spacepoints
-  # for i in range(3):
-  #   if (evt_hit.global_plane==i).sum() < 50: return
-  # if evt_sp.shape[0] < 50: return
+  for i in range(3):
+    if (evt_hit.global_plane==i).sum() < 50: return
+  if evt_sp.shape[0] < 50: return
 
-  # get labels for each particle
-  # evt_part = part.loc[key].reset_index(drop=True)
-  # evt_part = l.semantic_labels(evt_part)
-  # evt_part = l.instance_labels(evt_part)
+  # merge hits into spacepoints
+  for plane in ["u","v","y"]:
+    evt_sp = evt_sp.merge(evt_hit[["hit_id","integral","slabel"]].add_suffix(f"_{plane}"), on=f"hit_id_{plane}", how="left")
+    evt_sp[f"integral_{plane}"] = evt_sp[f"integral_{plane}"].fillna(0)
 
-  # join the dataframes to transform particle labels into hit labels
-  # evt_hit = evt_hit.merge(evt_part.drop(["parent_id", "type"], axis=1), on="g4_id", how="inner")
+  def merge_truth(row, n):
+    labels = np.zeros(n)
+    for plane in ["u","v","y"]:
+      vals = row[f"slabel_{plane}"]
+      if type(vals) != float: labels += vals
+    return labels
 
-  # now we need to combine those
-  # node_feats = ["global_plane", "global_wire", "global_time", "tpc",
-  #   "local_plane", "local_wire", "local_time", "integral", "rms"]
-  # graph_dict = {
-  #   "x": torch.tensor(plane[node_feats].to_numpy()).float(),
-  #   "edge_index": torch.tensor(edge[["idx_1", "idx_2"]].to_numpy().T).long(),
-  #   "y": torch.tensor(plane["label"].to_numpy()).long(),
-  #   "y_edge": torch.tensor(edge["label"].to_numpy()).long()  
-  # }
-  # out.save(tg.data.Data(**graph_dict))
+  evt_sp["slabel"] = evt_sp.apply(merge_truth, args=[len(l.label)-1], axis="columns")
+  evt_sp = evt_sp[["slabel", "position_x", "position_y", "position_z", "integral_u", "integral_v", "integral_y"]]
 
-def process_file(out, fname, p=process_event, l=standard):
+  # voxelise spacepoints and aggregate labels
+  def voxelise(row):
+    return np.floor(row.position_x/voxelsize), np.floor(row.position_y/voxelsize), np.floor(row.position_z/voxelsize)
+  evt_sp["c"] = evt_sp.apply(voxelise, axis="columns")
+  evt_sp = evt_sp.drop(["position_x", "position_y", "position_z"], axis="columns")
+  evt_sp = evt_sp.groupby("c").agg({"integral_u": "sum", "integral_v": "sum", "integral_y": "sum", "slabel": "sum"}).reset_index()
+  def norm_truth(row, noise):
+    lsum = row.slabel.sum()
+    return noise if lsum == 0 else row.slabel / lsum
+  evt_sp["slabel"] = evt_sp.apply(norm_truth, args=[noise], axis="columns")
+
+  spm = {
+    "f": torch.tensor(evt_sp[["integral_u", "integral_v", "integral_y"]].to_numpy()).float(),
+    "c": torch.tensor(evt_sp["c"]).int(),
+    "ys": torch.tensor(evt_sp["slabel"]).float()
+  }
+  out.save(spm, f"r{key[0]}_sr{key[1]}_evt{key[2]}")
+
+def process_file(out, fname, p=process_event, l=standard, voxelsize=1):
   """Process all events in a file into graphs"""
   f = NuMLFile(fname)
 
   evt = f.get_dataframe("event_table", ["event_id"])
   sp = f.get_dataframe("spacepoint_table")
   hit = f.get_dataframe("hit_table")
-#  part = f.get_dataframe("particle_table", ["event_id", "g4_id", "parent_id", "type"])
   part = f.get_dataframe("particle_table")
   edep = f.get_dataframe("edep_table")
 
   # loop over events in file
-  for key in evt.index: p(out, key, sp, hit, part, edep, l)
+  for key in evt.index: p(key, out, sp, hit, part, edep, l, voxelsize)
 
