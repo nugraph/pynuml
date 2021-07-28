@@ -12,17 +12,12 @@ def process_event(key, out, sp, hit, part, edep, l=standard, voxelsize=1):
 
   # label true particles
   evt_part = part.loc[key].reset_index(drop=True)
-  evt_part = l.semantic_label(evt_part)
+  evt_part = l.panoptic_label(evt_part)
 
   # get energy depositions and ground truth
   evt_edep = edep.loc[key].reset_index(drop=True)
   evt_edep = evt_edep.merge(evt_part[["g4_id", "semantic_label"]], on="g4_id", how="left").drop("g4_id", axis="columns")
   scores = evt_edep.groupby(["hit_id", "semantic_label"]).agg({"energy": "sum"}).reset_index()
-
-  def fractional_truth(row, n):
-    label = np.zeros(n)
-    label[int(row.semantic_label)] = row.energy
-    return label
 
   # class number and names
   n = len(l.label) - 1
@@ -30,6 +25,10 @@ def process_event(key, out, sp, hit, part, edep, l=standard, voxelsize=1):
   noise = np.zeros(n)
   noise[l.label.diffuse.value] = 1
 
+  def fractional_truth(row, n):
+    label = np.zeros(n)
+    label[int(row.semantic_label)] = row.energy
+    return label
   scores["slabel"] = scores.apply(fractional_truth, args=[n], axis="columns")
   scores = scores.groupby("hit_id").agg({"slabel": "sum"})
 
@@ -82,7 +81,7 @@ def process_file(out, fname, p=process_event, l=standard, voxelsize=1):
   evt = f.get_dataframe("event_table", ["event_id"])
   sp = f.get_dataframe("spacepoint_table")
   hit = f.get_dataframe("hit_table")
-  part = f.get_dataframe("particle_table")
+  part = f.get_dataframe("particle_table", ["event_id", "g4_id", "parent_id", "type", "momentum", "start_process", "end_process"])
   edep = f.get_dataframe("edep_table")
 
   # loop over events in file
