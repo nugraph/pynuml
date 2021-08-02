@@ -2,7 +2,7 @@ import h5py, numpy as np, pandas as pd
 
 class NuMLFile:
   def __init__(self, file):
-    self._file = h5py.File(file, "r")
+    self._filename = file
     self._colmap = {
       "event_table": {
         "nu_dir": [ "nu_dir_x", "nu_dir_y", "nu_dir_z" ],
@@ -18,25 +18,27 @@ class NuMLFile:
       },
       "edep_table": {}
     }
+    self._groups = []
 
   def __len__(self):
-    return self._file["event_table/event_id"].shape[0]
+    with h5py.File(self._filename, "r") as f:
+      return f["event_table/event_id"].shape[0]
 
   def __str__(self):
-    ret = ""
-    for k1 in self._file.keys():
-      ret += f"{k1}:\n"
-      for k2 in self._file[k1].keys(): ret += f"  {k2}"
-      ret += "\n"
-    return ret
+    with h5py.File(self._filename, "r") as f:
+      ret = ""
+      for k1 in self._file.keys():
+        ret += f"{k1}:\n"
+        for k2 in self._file[k1].keys(): ret += f"  {k2}"
+        ret += "\n"
+      return ret
 
-  def id(self, idx):
-    if not 0 <= idx < len(self):
-      raise Exception(f"Index {idx} out of range in file!")
-    return self._file["event_table/event_id"][idx]
+  def add_group(self, group, keys=[]):
+    self._groups.append([ group, keys ])
 
   def keys(self):
-    return self._file.keys()
+    with h5py.File(self._filename, "r") as f:
+      return f.keys()
 
   def _cols(self, group, key):
     if key == "event_id": return [ "run", "subrun", "event" ]
@@ -44,24 +46,25 @@ class NuMLFile:
     else: return [key]
 
   def get_dataframe(self, group, keys=[]):
-    if not keys: keys = list(self._file[group].keys())
-    dfs = [ pd.DataFrame(np.array(self._file[group][key]), columns=self._cols(group, key)) for key in keys ]
-    return pd.concat(dfs, axis="columns").set_index(["run","subrun","event"])
+    with h5py.File(self._filename, "r") as f:
+      if not keys: keys = list(f.keys())
+      dfs = [ pd.DataFrame(np.array(f[group][key]), columns=self._cols(group, key)) for key in keys ]
+      return pd.concat(dfs, axis="columns").set_index(["run","subrun","event"])
 
-  def events(self, groups):
-    for i in range(len(self)):
-      index = self.id(i)
-      ret = {}
-      # loop over groups in file
-      for group, datasets in groups:
-        # mask out based on run, subrun and event
-        m = (self._file[group]["event_id"][()] == index).all(axis=1)
-        if not datasets: datasets = list(self._file[group].keys())
+  def __getitem__(self, idx):
+    """load a single event from file"""
+    with h5py.File(self._filename, "r") as f:
+      index = f["event_table/event_id"][idx]
+      ret = { "index": index }
+
+      for group, datasets in self._groups:
+        m = (f[group]["event_id"][()] == index).all(axis=1)
+        if not datasets: datasets = list(f[group].keys())
         def slice(g, d, m):
-          n = self._file[g][d].shape[1]
+          n = f[g][d].shape[1]
           m = m[:,None].repeat(n, axis=1)
-          return pd.DataFrame(self._file[g][d][m].reshape([-1,n]), columns=self._cols(g,d))
+          return pd.DataFrame(f[g][d][m].reshape([-1,n]), columns=self._cols(g,d))
         dfs = [ slice(group, dataset, m) for dataset in datasets ]
         ret[group] = pd.concat(dfs, axis="columns")
-      yield ret
+      return ret
 
