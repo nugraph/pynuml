@@ -3,16 +3,15 @@ from ..core.file import NuMLFile
 from ..labels import *
 from ..graph import *
 
-def single_plane_graph(gen, l=ccqe.hit_label, e=edges.delaunay):
+def single_plane_graph(f, idx, l=ccqe.hit_label, e=edges.delaunay):
   """Process an event into graphs"""
 
-  evt = next(gen)
+  evt = f[idx]
 
-  key = evt["event_table"].values
-  print(key)
+  key = evt["index"]
 
   import os.path as osp
-  if osp.exists(f"/raid/uboone/pandora/processed_delaunay/r{key[0]}_sr{key[1]}_evt{key[2]}_p0.pt"):
+  if osp.exists(f"/raid/uboone/pandora/processed_delaunay_debug/r{key[0]}_sr{key[1]}_evt{key[2]}_p0.pt"):
     print(f"skipping {key}")
     return
 
@@ -57,18 +56,13 @@ def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.del
   print(f"Processing {fname}")
   f = NuMLFile(fname)
 
-  groups = [
-    ["event_table", ["event_id"]],
-    ["hit_table", []],
-    ["particle_table", ["event_id", "g4_id", "parent_id", "type"]],
-    ["edep_table", []],
-  ]
-
-  gen = f.events(groups)
+  f.add_group("hit_table")
+  f.add_group("particle_table", ["event_id", "g4_id", "parent_id", "type"])
+  f.add_group("edep_table")
 
   if p is None:
-    for i in range(len(f)):
-      name, data = g(gen, l, e)
+    for idx in range(len(f)):
+      name, data = g(f, idx, l, e)
       out.save(data, name)
   else:
     from functools import partial
