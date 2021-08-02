@@ -1,3 +1,1 @@
-from .core import *
-from .process import *
-from .plot import *
+from . import core, process, graph, plot

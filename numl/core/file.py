@@ -51,6 +51,11 @@ class NuMLFile:
       dfs = [ pd.DataFrame(np.array(f[group][key]), columns=self._cols(group, key)) for key in keys ]
       return pd.concat(dfs, axis="columns").set_index(["run","subrun","event"])
 
+  def index(self, idx):
+    """get the index for a given row"""
+    with h5py.File(self._filename, "r") as f:
+      return f["event_table/event_id"][idx]
+
   def __getitem__(self, idx):
     """load a single event from file"""
     with h5py.File(self._filename, "r") as f:
