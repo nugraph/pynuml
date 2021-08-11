@@ -55,6 +55,9 @@ def panoptic_label(part):
         if part.end_process == b'StepLimiter' or part.end_process == b'annihil' or part.end_process == b'eBrem':
           sl = label.diffuse.value # is this right?
       if part.type == 111: sl = label.invisible.value
+      if sl == -1:
+        raise Exception(f"particle not recognised! PDG code {part.type}, parent type {parent_type}, start process {part.start_process}, end process {part.end_process}")
+
       return sl, slc
 
     def i(part, particles, sl):

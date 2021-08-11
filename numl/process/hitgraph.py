@@ -58,3 +58,5 @@ def process_file(out, fname, g=process_event_singleplane, l=ccqe, e=edges.window
   # loop over events in file
   for key in evt.index: g(out, key, hit, part, edep, l, e)
 
+  print('End processing ', fname)
+
