@@ -3,7 +3,7 @@ from ..core.file import NuMLFile
 from ..labels import *
 from ..graph import *
 
-def single_plane_graph(f, idx, l=ccqe.hit_label, e=edges.delaunay):
+def single_plane_graph(f, idx, l=ccqe.hit_label, e=edges.knn, **edge_args):
   """Process an event into graphs"""
 
   key = f.index(idx)
@@ -49,11 +49,11 @@ def single_plane_graph(f, idx, l=ccqe.hit_label, e=edges.delaunay):
       y=torch.tensor(plane["label"].values).long(),
       pos=pos,
     )
-    data = e(data)
+    data = e(data, **edge_args)
     ret.append([f"r{key[0]}_sr{key[1]}_evt{key[2]}_p0", data])
   return ret
 
-def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.delaunay, p=None):
+def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.knn, p=None):
   """Process all events in a file into graphs"""
   print(f"Processing {fname}")
   f = NuMLFile(fname)
