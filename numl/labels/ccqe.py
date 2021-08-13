@@ -1,4 +1,4 @@
-def hit_label(part):
+def semantic_label(part):
   # get primary for each particle
   part = part.set_index("g4_id", drop=False)
 
@@ -18,8 +18,8 @@ def hit_label(part):
       pid = part.parent_id[pid]
 
   # apply backtrace function to get labels
-  part["label"] = part.apply(func, axis=1)
-  return part.reset_index(drop=True)
+  part["semantic_label"] = part.apply(func, axis=1)
+  return part.reset_index(drop=True)[["g4_id", "semantic_label"]]
 
 def edge_label(edge):
 

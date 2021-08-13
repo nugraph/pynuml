@@ -7,6 +7,9 @@ class PTOut:
   def save(self, obj, name):
     torch.save(obj, osp.join(self.outdir, name)+".pt")
 
+  def exists(self, name):
+    return osp.exists(osp.join(self.outdir, name)+".pt")
+
 class H5Out:
   def __init__(self, fname):
     self.f = h5py.File(fname, "w")

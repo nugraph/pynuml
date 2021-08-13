@@ -36,25 +36,32 @@ def panoptic_label(part):
       if abs(part.type) == 211: sl = label.pion.value
       if abs(part.type) == 13:  sl = label.muon.value
       if abs(part.type) == 321: sl = label.kaon.value
-      if abs(part.type) == 2212 or particle.pdgid.is_nucleus(part.type): sl = label.hadron.value
-      if part.type == 2112:
+      if (particle.pdgid.is_baryon(part.type) and particle.pdgid.charge != 0) \
+        or particle.pdgid.is_nucleus(part.type): sl = label.hadron.value
+      if particle.pdgid.is_baryon(part.type) and particle.pdgid.charge(part.type) == 0:
         sl = label.diffuse.value
         slc = label.diffuse.value # propagate to children
       if part.type == 22:
         if part.end_process == b'conv':
           sl = label.shower.value
           slc = label.shower.value # propagate to children
-        if part.start_process == b'eBrem' or part.end_process == b'phot':
+        if part.start_process == b'eBrem' or part.end_process == b'phot' \
+          or part.end_process == b'photonNuclear':
           sl = label.diffuse.value
           slc = label.diffuse.value #propagate to children
       if abs(part.type) == 11:
-        if abs(parent_type) == 13 and (part.start_process == b'muMinusCaptureAtRest' or part.start_process == b'muPlusCaptureAtRest'):
+        if abs(parent_type) == 13 and (part.start_process == b'muMinusCaptureAtRest' \
+          or part.start_process == b'muPlusCaptureAtRest' or part.start_process == b'Decay'):
           sl = label.michel.value
-        if part.end_process == b'muIoni' or part.end_process == b'hIoni' or part.end_process == b'eIoni':
+        if part.start_process == b'muIoni' or part.start_process == b'hIoni' \
+          or part.start_process == b'eIoni':
           sl = label.delta.value
-        if part.end_process == b'StepLimiter' or part.end_process == b'annihil' or part.end_process == b'eBrem':
+        if part.end_process == b'StepLimiter' or part.end_process == b'annihil' \
+          or part.end_process == b'eBrem' or part.start_process == b'hBertiniCaptureAtRest' \
+          or part.end_process == b'FastScintillation':
           sl = label.diffuse.value # is this right?
-      if part.type == 111: sl = label.invisible.value
+          slc = label.diffuse.value # propagate to children
+      if part.type == 111 or abs(part.type) == 311 or abs(part.type) == 310 or abs(part.type) == 130: sl = label.invisible.value
       if sl == -1:
         raise Exception(f"particle not recognised! PDG code {part.type}, parent type {parent_type}, start process {part.start_process}, end process {part.end_process}")
 
@@ -90,7 +97,7 @@ def panoptic_label(part):
     if row.instance_label == -1: return -1
     return instances[row.instance_label]
   labels["instance_label"] = labels.apply(alias_instance, args=[instances], axis="columns")
-  return part.reset_index(drop=True).merge(pd.DataFrame.from_dict(ret), on="g4_id", how="left")
+  return labels
 
 def semantic_label(part):
   return panoptic_label(part).drop("instance_label", axis="columns")
