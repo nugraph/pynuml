@@ -6,8 +6,20 @@ from ..graph import *
 def process_event_singleplane(out, key, hit, part, edep, l=ccqe, e=edges.window_edges):
   """Process an event into graphs"""
   # skip any events with no simulated hits
-  if (hit.index==key).sum() == 0: return
-  if (edep.index==key).sum() == 0: return
+  print(f"processing event {key[0]}, {key[1]}, {key[2]}")
+
+  nhit = (hit.index==key).sum()
+  print(f"this event contains {nhit} hits", end="")
+  if nhit == 0:
+    print(". skipping!")
+    return
+  nedep = (edep.index==key).sum()
+  print(f" and {nedep} energy depositions", end="")
+  if nedep == 0:
+    print(". skipping!")
+    return
+  else:
+    print(".")
 
   # get energy depositions, find max contributing particle, and ignore any hits with no truth
   evt_edep = edep.loc[key].reset_index(drop=True)
@@ -20,7 +32,6 @@ def process_event_singleplane(out, key, hit, part, edep, l=ccqe, e=edges.window_
 
   # get labels for each particle
   evt_part = part.loc[key].reset_index(drop=True)
-  evt_part = l.hit_label(evt_part)
 
   # join the dataframes to transform particle labels into hit labels
   evt_hit = evt_hit.merge(evt_part.drop(["parent_id", "type"], axis=1), on="g4_id", how="inner")
@@ -33,7 +44,6 @@ def process_event_singleplane(out, key, hit, part, edep, l=ccqe, e=edges.window_
 
     # Build and label edges
     edge = e(plane)
-    edge = l.edge_label(edge)
 
     # Save to file
     node_feats = ["global_plane", "global_wire", "global_time", "tpc",
@@ -41,8 +51,7 @@ def process_event_singleplane(out, key, hit, part, edep, l=ccqe, e=edges.window_
     graph_dict = {
       "x": torch.tensor(plane[node_feats].to_numpy()).float(),
       "edge_index": torch.tensor(edge[["idx_1", "idx_2"]].to_numpy().T).long(),
-      "y": torch.tensor(plane["label"].to_numpy()).long(),
-      "y_edge": torch.tensor(edge["label"].to_numpy()).long()  
+      "y": torch.tensor(plane["semantic_label"].to_numpy()).long()
     }
     out.save(tg.data.Data(**graph_dict), f"r{key[0]}_sr{key[1]}_evt{key[2]}_p{p}")
 
