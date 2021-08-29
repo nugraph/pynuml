@@ -1,5 +1,6 @@
 import pandas as pd, torch, torch_geometric as tg
 from ..core.file import NuMLFile
+from ..core.out import PTOut
 from ..labels import *
 from ..graph import *
 
@@ -61,6 +62,8 @@ def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.knn
   f.add_group("hit_table")
   f.add_group("particle_table", ["event_id", "g4_id", "parent_id", "type"])
   f.add_group("edep_table")
+
+  out = PTOut(out)
 
   if p is None:
     for idx in range(len(f)):
