@@ -2,18 +2,12 @@ import pandas as pd, torch, torch_geometric as tg
 from ..core.file import NuMLFile
 from ..labels import *
 from ..graph import *
+from ..core.out import PTOut
+from mpi4py import MPI
+import numpy as np
 
-def single_plane_graph(f, idx, l=ccqe.hit_label, e=edges.knn, **edge_args):
+def single_plane_graph(event_id, evt, l=ccqe.hit_label, e=edges.knn, **edge_args):
   """Process an event into graphs"""
-
-  key = f.index(idx)
-
-  import os.path as osp
-  if osp.exists(f"/data/uboone/pandora/processed_delaunay/r{key[0]}_sr{key[1]}_evt{key[2]}_p0.pt"):
-    print(f"skipping {key}")
-    return
-
-  evt = f[idx]
 
   # skip any events with no simulated hits
   # if (hit.index==key).sum() == 0: return
@@ -50,51 +44,90 @@ def single_plane_graph(f, idx, l=ccqe.hit_label, e=edges.knn, **edge_args):
       pos=pos,
     )
     data = e(data, **edge_args)
-    ret.append([f"r{key[0]}_sr{key[1]}_evt{key[2]}_p0", data])
+    ret.append([f"r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}_p0", data])
   return ret
 
-def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.knn, p=None):
+def process_file(out_dir, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.delaunay, p=None):
+  comm = MPI.COMM_WORLD
+  nprocs = comm.Get_size()
+  rank = comm.Get_rank()
+
+  start_t = MPI.Wtime()
+  timing = start_t
   """Process all events in a file into graphs"""
-  print(f"Processing {fname}")
+  if rank == 0:
+    print(f"Processing {fname}")
+    print(f"Output folder {out_dir}")
   f = NuMLFile(fname)
 
+  # only use the following groups and datasets in them
   f.add_group("hit_table")
-  f.add_group("particle_table", ["event_id", "g4_id", "parent_id", "type"])
+  f.add_group("particle_table", ["event_id.seq", "g4_id", "parent_id", "type"])
   f.add_group("edep_table")
 
-  if p is None:
-    for idx in range(len(f)):
-      tmp = g(f, idx, l, e)
-      if tmp is not None:
-        for name, data in tmp:
-          print("saving", name)
-          out.save(data, name)
-  else:
-    from functools import partial
-    import multiprocessing as mp
-    procs = [ None for i in range(p) ]
-    idx = 0
-    with mp.Pool(processes=p) as pool:
-      while True:
-        for i in range(p):
-          if procs[i] is None:
-            print("starting new process", i+1, "for input", idx)
-            procs[i] = pool.apply_async(g, (f, idx, l, e))
-            idx += 1
-          elif procs[i].ready():
-            print("got output back from process", i+1)
-            tmp = procs[i].get()
-            if tmp is not None:
-              for name, data in tmp:
-                print("saving", name)
-                out.save(data, name)
-            print("starting new process", i+1, "for input", idx)
-            procs[i] = pool.apply_async(g, (f, idx, l, e))
-            idx += 1
-          if idx == len(f): return
+  out = PTOut(out_dir)
 
-    # func = partial(g, out=out, l=l, e=e)
-    # with mp.Pool(processes=p) as pool: pool.map(func, gen)
+  # number of unique event IDs in the input file
+  event_id_len = f.num_seqs()
+  if rank == 0:
+    print("Size of event_table/event_id is ", event_id_len)
 
-  print('End processing ', fname)
+  # Calculate the start and end evt.seq id for each process
+  starts = []
+  ends = []
+  _count = event_id_len // nprocs
+  for j in range(event_id_len % nprocs):
+    starts.append(_count * j + j)
+    ends.append(starts[j] + _count)
+
+  for j in range(event_id_len % nprocs, nprocs):
+    starts.append(_count * j + event_id_len % nprocs)
+    ends.append(starts[j] + _count - 1)
+
+  # This process is assigned event IDs of range from my_start to my_end
+  my_start = starts[rank]
+  my_end   = ends[rank]
+  # print("rank ",rank," my_start=",my_start," my_end=",my_end)
+
+  # read data of the event IDs responsible by this process
+  f.read_data(starts, ends)
+
+  read_time = MPI.Wtime() - timing
+  timing = MPI.Wtime()
+
+  # organize the data into a list based on event IDs, so data corresponding to
+  # one event ID can be used to create a graph. A graph will be stored as a
+  # dataframe.
+  evt_list = f.build_evt(my_start, my_end)
+  # print("rank ",rank, " len(evt_list)=", len(evt_list))
+
+  build_list_time = MPI.Wtime() - timing
+  timing = MPI.Wtime()
+
+  # Iterate through event IDs, construct graphs and store them in files
+  for idx in range(len(evt_list)):
+    # avoid overwriting to already existing files
+    import os.path as osp
+    event_id = f.index(my_start + idx)
+    if osp.exists(f"{out_dir}/r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}_p0.pt"):
+      print(f"{rank}: skipping event ID {event_id}")
+      continue
+    tmp = g(event_id, evt_list[idx], l, e)
+    if tmp is not None:
+      for name, data in tmp:
+        # print("saving", name)
+        out.save(data, name)
+
+  graph_time = MPI.Wtime() - timing
+  total_time = MPI.Wtime() - start_t
+
+  max_total_t = np.zeros(4)
+  total_t = np.array([read_time, build_list_time, graph_time, total_time])
+  comm.Reduce(total_t, max_total_t, op=MPI.MAX, root = 0)
+
+  if rank == 0:
+    print("read file      time MAX=%6.2f" % (max_total_t[0]))
+    print("build evt list time MAX=%6.2f" % (max_total_t[1]))
+    print("graph create   time MAX=%6.2f" % (max_total_t[2]))
+    print("total          time MAX=%6.2f" % (max_total_t[3]))
 
