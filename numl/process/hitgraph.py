@@ -47,7 +47,7 @@ def single_plane_graph(event_id, evt, l=ccqe.hit_label, e=edges.knn, **edge_args
     ret.append([f"r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}_p0", data])
   return ret
 
-def process_file(out_dir, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.delaunay, p=None):
+def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.delaunay, p=None):
   comm = MPI.COMM_WORLD
   nprocs = comm.Get_size()
   rank = comm.Get_rank()
@@ -57,15 +57,13 @@ def process_file(out_dir, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges
   """Process all events in a file into graphs"""
   if rank == 0:
     print(f"Processing {fname}")
-    print(f"Output folder {out_dir}")
+    print(f"Output folder {out.outdir}")
   f = NuMLFile(fname)
 
   # only use the following groups and datasets in them
   f.add_group("hit_table")
   f.add_group("particle_table", ["event_id.seq", "g4_id", "parent_id", "type"])
   f.add_group("edep_table")
-
-  out = PTOut(out_dir)
 
   # number of unique event IDs in the input file
   event_id_len = f.num_seqs()
@@ -109,7 +107,7 @@ def process_file(out_dir, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges
     # avoid overwriting to already existing files
     import os.path as osp
     event_id = f.index(my_start + idx)
-    if osp.exists(f"{out_dir}/r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}_p0.pt"):
+    if osp.exists(f"{out.outdir}/r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}_p0.pt"):
       print(f"{rank}: skipping event ID {event_id}")
       continue
     tmp = g(event_id, evt_list[idx], l, e)
