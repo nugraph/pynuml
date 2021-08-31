@@ -14,6 +14,7 @@ def hit_label(part):
     pid = row.parent_id
     while True:
       if pid == 0: return label(part.type[gid])
+      if not pid in part.g4_id: return label(part.type[gid])
       gid = part.g4_id[pid]
       pid = part.parent_id[pid]
 
