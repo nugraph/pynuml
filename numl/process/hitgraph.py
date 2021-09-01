@@ -56,8 +56,10 @@ def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.del
   timing = start_t
   """Process all events in a file into graphs"""
   if rank == 0:
-    print(f"Processing {fname}")
-    print(f"Output folder {out.outdir}")
+    print(f"Processing file: {fname}")
+    print(f"Output folder: {out.outdir}")
+
+  # open input file and read dataset "/event_table/event_id"
   f = NuMLFile(fname)
 
   # only use the following groups and datasets in them
@@ -66,7 +68,7 @@ def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.del
   f.add_group("edep_table")
 
   # number of unique event IDs in the input file
-  event_id_len = f.num_seqs()
+  event_id_len = len(f)
   if rank == 0:
     print("Size of event_table/event_id is ", event_id_len)
 
@@ -87,7 +89,7 @@ def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.del
   my_end   = ends[rank]
   # print("rank ",rank," my_start=",my_start," my_end=",my_end)
 
-  # read data of the event IDs responsible by this process
+  # read data of the event IDs assigned to this process
   f.read_data(starts, ends)
 
   read_time = MPI.Wtime() - timing
@@ -100,10 +102,12 @@ def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.del
   # print("rank ",rank, " len(evt_list)=", len(evt_list))
 
   build_list_time = MPI.Wtime() - timing
-  timing = MPI.Wtime()
+  write_time = 0
+  graph_time = 0
 
-  # Iterate through event IDs, construct graphs and store them in files
+  # Iterate through event IDs, construct graphs and save them in files
   for idx in range(len(evt_list)):
+    timing = MPI.Wtime()
     # avoid overwriting to already existing files
     import os.path as osp
     event_id = f.index(my_start + idx)
@@ -111,21 +115,29 @@ def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.del
       print(f"{rank}: skipping event ID {event_id}")
       continue
     tmp = g(event_id, evt_list[idx], l, e)
+    graph_time += MPI.Wtime() - timing
+
+    timing = MPI.Wtime()
     if tmp is not None:
       for name, data in tmp:
         # print("saving", name)
         out.save(data, name)
+    write_time += MPI.Wtime() - timing
 
-  graph_time = MPI.Wtime() - timing
   total_time = MPI.Wtime() - start_t
 
-  max_total_t = np.zeros(4)
-  total_t = np.array([read_time, build_list_time, graph_time, total_time])
+  total_t = np.array([read_time, build_list_time, graph_time, write_time, total_time])
+  max_total_t = np.zeros(5)
   comm.Reduce(total_t, max_total_t, op=MPI.MAX, root = 0)
+  min_total_t = np.zeros(5)
+  comm.Reduce(total_t, min_total_t, op=MPI.MIN, root = 0)
 
   if rank == 0:
-    print("read file      time MAX=%6.2f" % (max_total_t[0]))
-    print("build evt list time MAX=%6.2f" % (max_total_t[1]))
-    print("graph create   time MAX=%6.2f" % (max_total_t[2]))
-    print("total          time MAX=%6.2f" % (max_total_t[3]))
+    print("Number of MPI processes = ", nprocs)
+    print("read file file  time MAX=%8.2f  MIN=%8.2f" % (max_total_t[0], min_total_t[0]))
+    print("build dataframe time MAX=%8.2f  MIN=%8.2f" % (max_total_t[1], min_total_t[1]))
+    print("graph creation  time MAX=%8.2f  MIN=%8.2f" % (max_total_t[2], min_total_t[2]))
+    print("write to file   time MAX=%8.2f  MIN=%8.2f" % (max_total_t[3], min_total_t[3]))
+    print("total           time MAX=%8.2f  MIN=%8.2f" % (max_total_t[4], min_total_t[4]))
+    print("(MAX and MIN timings are among %d processes)" % nprocs)
 
