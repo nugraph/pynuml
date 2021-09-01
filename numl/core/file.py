@@ -19,20 +19,37 @@ class NuMLFile:
       },
       "edep_table": {}
     }
-    self._groups = []
-    self._fd = h5py.File(self._filename, "r", driver='mpio', comm=MPI.COMM_SELF)
+
+    # open the input HDF5 file in parallel
+    self._fd = h5py.File(self._filename, "r", driver='mpio', comm=MPI.COMM_WORLD)
+
+    # all processes read dataset "event_table/event_id" stored in an numpy array
     self._index = self._fd["event_table/event_id"][:]
+
+    # self._groups is a python list, each member is a 2-element list consisting
+    # of group name, and a python list of dataset names
+    self._groups = []
+
+    # a python dictionary storing dataset event_id.seq in each group, keys are
+    # group names, values are the event_id.seq subarrays assigned to this
+    # process
     self._evt_seq = {}
+
+    # a python nested dictionary storing datasets in each group, read from
+    # input file keys are group names, values are python dictionaries, each has
+    # names of dataset in that group as keys, and values storing dataset
+    # subarrays
     self._data = {}
+
+    # this process's starting array index of event_table/event_id.seq
     self._my_start = -1
+
+    # this process's end array index of event_table/event_id.seq
     self._my_end = -1
 
-  def num_seqs(self):
-    return self._fd["event_table/event_id.seq"].shape[0]
-
   def __len__(self):
-    with h5py.File(self._filename, "r") as f:
-      return f["event_table/event_id"].shape[0]
+    # inquire the number of unique event IDs in the input file
+    return len(self._index)
 
   def __str__(self):
     with h5py.File(self._filename, "r") as f:
@@ -44,6 +61,11 @@ class NuMLFile:
       return ret
 
   def add_group(self, group, keys=[]):
+    if not keys:
+      # retrieve all the dataset names of the group
+      keys = list(self._fd[group].keys())
+      # dataset event_id is not needed
+      keys.remove("event_id")
     self._groups.append([ group, keys ])
 
   def keys(self):
@@ -112,7 +134,8 @@ class NuMLFile:
 
 
   def read_data(self, starts, ends):
-    # Parallel read dataset subarrays falling into range from my_start to my_end
+    # Parallel read dataset subarrays assigned to this process ranging from
+    # array index of my_start to my_end
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     nprocs = comm.Get_size()
@@ -120,7 +143,7 @@ class NuMLFile:
     self._my_end = ends[rank]
 
     for group, datasets in self._groups:
-      all_evt_seq = None
+      all_evt_seq = []
       bounds = None
       if rank == 0:
         # root reads the entire event_id.seq dataset
@@ -160,18 +183,12 @@ class NuMLFile:
       # root distributes all_evt_seq to all processes
       comm.Scatterv([all_evt_seq, count, displ, MPI.LONG_LONG], self._evt_seq[group], root=0)
 
-      self._data[group] = {}
-      if not datasets:
-        # retrieve all the names of datasets in the group
-        datasets = list(self._fd[group].keys())
-        # dataset event_id is not needed
-        datasets.remove("event_id")
-
       # Iterate through all the datasets and read the subarray from index lower
       # to upper and store it into a dictionary with the names of group and
       # dataset as the key.
+      self._data[group] = {}
       for dataset in datasets:
-        with self._fd[group][dataset].collective:
+        with self._fd[group][dataset].collective:  # read each dataset collectively
           self._data[group][dataset] = self._fd[group][dataset][lower : upper + 1]
 
   def build_evt(self, start, end):
@@ -184,7 +201,7 @@ class NuMLFile:
     # The values of event IDs are stored in self._evt_seq[group][]
     # Iterate through assigned event IDs
     for idx in range(int(start), int(end) + 1):
-      # for each event ID, create a dictornary
+      # for each event ID, create a dictionary
       #   first item: key is "index" and value is the event ID
       #   remaining items: key is group name and value is a Panda DataFrame
       #   containing the dataset subarray in this group with the event ID, idx
@@ -218,7 +235,7 @@ class NuMLFile:
 
           dfs.append(data_dataframe)
 
-        # concate into the dictionary "ret" with group names as keys
+        # concatenate into the dictionary "ret" with group names as keys
         ret[group] = pd.concat(dfs, axis="columns")
 
       # Add all dictionaries "ret" into a list.
