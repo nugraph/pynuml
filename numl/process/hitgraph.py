@@ -52,6 +52,7 @@ def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.del
   nprocs = comm.Get_size()
   rank = comm.Get_rank()
 
+  comm.Barrier()
   start_t = MPI.Wtime()
   timing = start_t
   """Process all events in a file into graphs"""
@@ -64,7 +65,8 @@ def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.del
 
   # only use the following groups and datasets in them
   f.add_group("hit_table")
-  f.add_group("particle_table", ["event_id.seq", "g4_id", "parent_id", "type"])
+  # f.add_group("particle_table", ["event_id.seq", "g4_id", "parent_id", "type"])
+  f.add_group("particle_table", ["g4_id", "parent_id", "type"])
   f.add_group("edep_table")
 
   # number of unique event IDs in the input file
@@ -93,28 +95,34 @@ def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.del
   f.read_data(starts, ends)
 
   read_time = MPI.Wtime() - timing
+  comm.Barrier()
   timing = MPI.Wtime()
 
   # organize the data into a list based on event IDs, so data corresponding to
   # one event ID can be used to create a graph. A graph will be stored as a
   # dataframe.
   evt_list = f.build_evt(my_start, my_end)
-  # print("rank ",rank, " len(evt_list)=", len(evt_list))
+  # print("len(evt_list)=", len(evt_list))
 
   build_list_time = MPI.Wtime() - timing
+  comm.Barrier()
   write_time = 0
   graph_time = 0
 
   # Iterate through event IDs, construct graphs and save them in files
-  for idx in range(len(evt_list)):
+  for i in range(len(evt_list)):
     timing = MPI.Wtime()
+
+    # retrieve event sequence ID
+    idx = evt_list[i]["index"]
+
     # avoid overwriting to already existing files
     import os.path as osp
-    event_id = f.index(my_start + idx)
+    event_id = f.index(idx)
     if osp.exists(f"{out.outdir}/r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}_p0.pt"):
-      print(f"{rank}: skipping event ID {event_id}")
+      # print(f"{rank}: skipping event ID {event_id}")
       continue
-    tmp = g(event_id, evt_list[idx], l, e)
+    tmp = g(event_id, evt_list[i], l, e)
     graph_time += MPI.Wtime() - timing
 
     timing = MPI.Wtime()
