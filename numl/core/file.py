@@ -31,10 +31,10 @@ class NuMLFile:
     # of group name, and a python list of dataset names
     self._groups = []
 
-    # a python dictionary storing dataset event_id.seq in each group, keys are
-    # group names, values are the event_id.seq subarrays assigned to this
-    # process
-    self._evt_seq = {}
+    # a python dictionary storing a sequence-count dataset in each group, keys
+    # are group names, values are the sequence-count dataset subarrays assigned
+    # to this process
+    self._seq_cnt = {}
 
     # a python nested dictionary storing datasets of each group read from the
     # input file. keys of self._data are group names, values are python
@@ -42,10 +42,10 @@ class NuMLFile:
     # storing dataset subarrays
     self._data = {}
 
-    # this process's starting array index of event_table/event_id.seq
+    # starting array index of event_table/event_id assigned to this process
     self._my_start = -1
 
-    # this process's end array index of event_table/event_id.seq
+    # end array index of event_table/event_id assigned to this process
     self._my_end = -1
 
   def __len__(self):
@@ -67,8 +67,7 @@ class NuMLFile:
       keys = list(self._fd[group].keys())
       # dataset event_id is not needed
       keys.remove("event_id")
-      keys.remove("event_id.seq")
-      keys.remove("event_id.seq_off_len")
+      keys.remove("event_id.seq_cnt")
     self._groups.append([ group, keys ])
 
   def keys(self):
@@ -144,7 +143,8 @@ class NuMLFile:
     nprocs = comm.Get_size()
     self._my_start = starts[rank]
     self._my_end = ends[rank]
-    off_len = np.empty([nprocs, 2], dtype=np.int)
+
+    seq_cnt = np.empty([nprocs, 2], dtype=np.int)
     displ = np.empty([nprocs], dtype=np.int)
     count = np.empty([nprocs], dtype=np.int)
 
@@ -157,13 +157,13 @@ class NuMLFile:
 
     for group, datasets in self._groups:
 
-      all_evt_seq = []
+      all_seq_cnt = []
       if rank == 0:
-        # root reads the entire dataset event_id.seq_off_len
-        all_evt_seq = self._fd[group+"/event_id.seq_off_len"][:]
-        # print("all_evt_seq type=", all_evt_seq.dtype)
-        dim = len(all_evt_seq)
-        # print("group=",group," dataset=",datasets," len of event_id.seq=",dim)
+        # root reads the entire dataset event_id.seq_cnt
+        all_seq_cnt = self._fd[group+"/event_id.seq_cnt"][:]
+        # print("all_seq_cnt type=", all_seq_cnt.dtype)
+        dim = len(all_seq_cnt)
+        # print("group=",group," dataset=",datasets," len of seq_cnt=",dim)
 
         time_e = MPI.Wtime()
         seq_time += time_e - time_s
@@ -172,55 +172,55 @@ class NuMLFile:
         # calculate displ, count to be used in scatterV for all processes
         recv_rank = 0  # receiver rank
         displ[recv_rank] = 0
-        off_len[recv_rank, 0] = 0
+        seq_cnt[recv_rank, 0] = 0
         seq_end = ends[recv_rank]
-        off = 0
+        seq_id = 0
         for i in range(dim):
-          if all_evt_seq[i, 0] > seq_end :
-            off_len[recv_rank, 1] = i - displ[recv_rank]
+          if all_seq_cnt[i, 0] > seq_end :
+            seq_cnt[recv_rank, 1] = i - displ[recv_rank]
             recv_rank += 1  # move on to the next receiver rank
             seq_end = ends[recv_rank]
             displ[recv_rank] = i
-            off_len[recv_rank, 0] = off
-          off += all_evt_seq[i, 1]
+            seq_cnt[recv_rank, 0] = seq_id
+          seq_id += all_seq_cnt[i, 1]
 
         # last receiver rank
-        off_len[nprocs-1, 1] = dim - displ[nprocs-1]
+        seq_cnt[nprocs-1, 1] = dim - displ[nprocs-1]
 
-        # print("starts=",starts," ends=",ends," displ=",displ," count=",count," off_len=",off_len )
+        # print("starts=",starts," ends=",ends," displ=",displ," count=",count," seq_cnt=",seq_cnt )
         displ[:] *= 2
-        count[:] = off_len[:, 1] * 2
+        count[:] = seq_cnt[:, 1] * 2
 
         time_e = MPI.Wtime()
         bin_time += time_e - time_s
         time_s = time_e
 
-      # root distributes off_len to all processes
-      my_off_len = np.empty([2], dtype=np.int)
-      comm.Scatter(off_len, my_off_len, root=0)
-      # print("------------------scatter my_off_len=",my_off_len)
+      # root distributes seq_cnt to all processes
+      my_seq_cnt = np.empty([2], dtype=np.int)
+      comm.Scatter(seq_cnt, my_seq_cnt, root=0)
+      # print("------------------scatter my_seq_cnt=",my_seq_cnt)
 
       time_e = MPI.Wtime()
       if rank == 0: sca_time += time_e - time_s
       time_s = time_e
 
-      # size of local _evt_seq array
-      # self._evt_seq[group][:, 0] is the event ID
-      # self._evt_seq[group][:, 1] is the number of elements
-      self._evt_seq[group] = np.empty([my_off_len[1], 2], dtype=np.int64)
-      # print("------------------ group=",group," _evt_seq size=",my_off_len[1])
+      # size of local _seq_cnt array
+      # self._seq_cnt[group][:, 0] is the event ID
+      # self._seq_cnt[group][:, 1] is the number of elements
+      self._seq_cnt[group] = np.empty([my_seq_cnt[1], 2], dtype=np.int64)
+      # print("------------------ group=",group," _seq_cnt size=",my_seq_cnt[1])
 
-      # root distributes all_evt_seq to all processes
-      comm.Scatterv([all_evt_seq, count, displ, MPI.LONG_LONG], self._evt_seq[group], root=0)
-      # print("group=",group," _evt_seq[0]=",self._evt_seq[group][0,:]," [e]=",self._evt_seq[group][my_off_len[1]-1,:]," my_off_len[1]=",my_off_len[1])
+      # root distributes all_seq_cnt to all processes
+      comm.Scatterv([all_seq_cnt, count, displ, MPI.LONG_LONG], self._seq_cnt[group], root=0)
+      # print("group=",group," _seq_cnt[0]=",self._seq_cnt[group][0,:]," [e]=",self._seq_cnt[group][my_seq_cnt[1]-1,:]," my_seq_cnt[1]=",my_seq_cnt[1])
 
       time_e = MPI.Wtime()
       scv_time += time_e - time_s
       time_s = time_e
 
       # this process is assigned array indices from lower to upper
-      lower = my_off_len[0]
-      upper = my_off_len[0] + np.sum(self._evt_seq[group][:, 1])
+      lower = my_seq_cnt[0]
+      upper = my_seq_cnt[0] + np.sum(self._seq_cnt[group][:, 1])
       # print("group=",group," lower=",lower," upper=",upper," count=",upper-lower)
 
       # Iterate through all the datasets and read the subarray from index lower
@@ -250,7 +250,7 @@ class NuMLFile:
   def build_evt(self, start, end):
     # This process is responsible for event IDs from start to end.
     # All data of the same event ID will be used to create a graph.
-    # This function collects all data based on event_id.seq into a python
+    # This function collects all data based on event_id.seq_cnt into a python
     # list containing Panda DataFrames, one for a unique event ID.
     ret_list = []
 
@@ -267,9 +267,9 @@ class NuMLFile:
       # check if idx is missing in all groups
       is_missing = True
       for group in self._data.keys():
-        if idx_grp[group] >= len(self._evt_seq[group][:, 0]):
+        if idx_grp[group] >= len(self._seq_cnt[group][:, 0]):
           continue
-        if idx == self._evt_seq[group][idx_grp[group], 0]:
+        if idx == self._seq_cnt[group][idx_grp[group], 0]:
           is_missing = False
           break
 
@@ -287,10 +287,10 @@ class NuMLFile:
       # Iterate through all groups
       for group in self._data.keys():
 
-        # self._evt_seq[group][:, 0] is the event ID
-        # self._evt_seq[group][:, 1] is the number of elements
+        # self._seq_cnt[group][:, 0] is the event ID
+        # self._seq_cnt[group][:, 1] is the number of elements
 
-        if idx_grp[group] >= len(self._evt_seq[group][:, 0]) or idx < self._evt_seq[group][idx_grp[group], 0]:
+        if idx_grp[group] >= len(self._seq_cnt[group][:, 0]) or idx < self._seq_cnt[group][idx_grp[group], 0]:
           # idx is missing from this group but may not in other groups
           # create an empty Panda DataFrame
           dfs = []
@@ -299,10 +299,10 @@ class NuMLFile:
             data_dataframe = pd.DataFrame(data, columns=self._cols(group, dataset))
             dfs.append(data_dataframe)
           ret[group] = pd.concat(dfs, axis="columns")
-          # print("xxx",group," missing idx=",idx," _evt_seq[0]=",self._evt_seq[group][idx_grp[group], 0])
+          # print("xxx",group," missing idx=",idx," _seq_cnt[0]=",self._seq_cnt[group][idx_grp[group], 0])
           continue
 
-        idx_end = self._evt_seq[group][idx_grp[group], 1] + idx_start[group]
+        idx_end = self._seq_cnt[group][idx_grp[group], 1] + idx_start[group]
 
         # dfs is a python list containing Panda DataFrame objects
         dfs = []
@@ -318,7 +318,7 @@ class NuMLFile:
 
         # concatenate into the dictionary "ret" with group names as keys
         ret[group] = pd.concat(dfs, axis="columns")
-        idx_start[group] += self._evt_seq[group][idx_grp[group], 1]
+        idx_start[group] += self._seq_cnt[group][idx_grp[group], 1]
         idx_grp[group] += 1
 
       # Add all dictionaries "ret" into a list.

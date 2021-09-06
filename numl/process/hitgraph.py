@@ -60,12 +60,11 @@ def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.del
     print(f"Processing file: {fname}")
     print(f"Output folder: {out.outdir}")
 
-  # open input file and read dataset "/event_table/event_id"
+  # open input file and read dataset "/event_table/event_id.seq_cnt"
   f = NuMLFile(fname)
 
   # only use the following groups and datasets in them
   f.add_group("hit_table")
-  # f.add_group("particle_table", ["event_id.seq", "g4_id", "parent_id", "type"])
   f.add_group("particle_table", ["g4_id", "parent_id", "type"])
   f.add_group("edep_table")
 
