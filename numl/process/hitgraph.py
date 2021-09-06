@@ -15,7 +15,11 @@ def single_plane_graph(event_id, evt, l=ccqe.hit_label, e=edges.knn, **edge_args
 
   # get energy depositions, find max contributing particle, and ignore any evt_hits with no truth
   evt_edep = evt["edep_table"]
-  evt_edep = evt_edep.loc[evt_edep.groupby("hit_id")["energy_fraction"].idxmax()]
+
+  # evt_edep = evt_edep.loc[evt_edep.groupby("hit_id")["energy_fraction"].idxmax()]
+  # below is faster than above
+  evt_edep = evt_edep.sort_values(by=['energy_fraction'], ascending=False, kind='mergesort').drop_duplicates('hit_id')
+
   evt_hit = evt_edep.merge(evt["hit_table"], on="hit_id", how="inner").drop("energy_fraction", axis=1)
 
   # skip events with fewer than 50 simulated hits in any plane
