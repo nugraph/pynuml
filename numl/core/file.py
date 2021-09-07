@@ -135,7 +135,7 @@ class NuMLFile:
     return (low - 1)
 
 
-  def read_data(self, starts, ends):
+  def read_data(self, starts, ends, profile=False):
     # Parallel read dataset subarrays assigned to this process ranging from
     # array index of my_start to my_end
     comm = MPI.COMM_WORLD
@@ -153,7 +153,7 @@ class NuMLFile:
     sca_time = 0
     scv_time = 0
     rds_time = 0
-    time_s = MPI.Wtime()
+    if profile: time_s = MPI.Wtime()
 
     for group, datasets in self._groups:
 
@@ -165,9 +165,10 @@ class NuMLFile:
         dim = len(all_seq_cnt)
         # print("group=",group," dataset=",datasets," len of seq_cnt=",dim)
 
-        time_e = MPI.Wtime()
-        seq_time += time_e - time_s
-        time_s = time_e
+        if profile:
+          time_e = MPI.Wtime()
+          seq_time += time_e - time_s
+          time_s = time_e
 
         # calculate displ, count to be used in scatterV for all processes
         recv_rank = 0  # receiver rank
@@ -191,18 +192,20 @@ class NuMLFile:
         displ[:] *= 2
         count[:] = seq_cnt[:, 1] * 2
 
-        time_e = MPI.Wtime()
-        bin_time += time_e - time_s
-        time_s = time_e
+        if profile:
+          time_e = MPI.Wtime()
+          bin_time += time_e - time_s
+          time_s = time_e
 
       # root distributes seq_cnt to all processes
       my_seq_cnt = np.empty([2], dtype=np.int)
       comm.Scatter(seq_cnt, my_seq_cnt, root=0)
       # print("------------------scatter my_seq_cnt=",my_seq_cnt)
 
-      time_e = MPI.Wtime()
-      if rank == 0: sca_time += time_e - time_s
-      time_s = time_e
+      if profile:
+        time_e = MPI.Wtime()
+        if rank == 0: sca_time += time_e - time_s
+        time_s = time_e
 
       # size of local _seq_cnt array
       # self._seq_cnt[group][:, 0] is the event ID
@@ -214,9 +217,10 @@ class NuMLFile:
       comm.Scatterv([all_seq_cnt, count, displ, MPI.LONG_LONG], self._seq_cnt[group], root=0)
       # print("group=",group," _seq_cnt[0]=",self._seq_cnt[group][0,:]," [e]=",self._seq_cnt[group][my_seq_cnt[1]-1,:]," my_seq_cnt[1]=",my_seq_cnt[1])
 
-      time_e = MPI.Wtime()
-      scv_time += time_e - time_s
-      time_s = time_e
+      if profile:
+        time_e = MPI.Wtime()
+        scv_time += time_e - time_s
+        time_s = time_e
 
       # this process is assigned array indices from lower to upper
       lower = my_seq_cnt[0]
@@ -231,21 +235,23 @@ class NuMLFile:
         with self._fd[group][dataset].collective:  # read each dataset collectively
           self._data[group][dataset] = self._fd[group][dataset][lower : upper]
 
-      time_e = MPI.Wtime()
-      rds_time += time_e - time_s
-      time_s = time_e
+      if profile:
+        time_e = MPI.Wtime()
+        rds_time += time_e - time_s
+        time_s = time_e
 
-    total_t = np.array([seq_time, bin_time, sca_time, scv_time, rds_time])
-    max_total_t = np.zeros(5)
-    comm.Reduce(total_t, max_total_t, op=MPI.MAX, root = 0)
-    min_total_t = np.zeros(5)
-    comm.Reduce(total_t, min_total_t, op=MPI.MIN, root = 0)
-    if rank == 0:
-      print("read seq    time MAX=%8.2f  MIN=%8.2f" % (max_total_t[0], min_total_t[0]))
-      print("bin search  time MAX=%8.2f  MIN=%8.2f" % (max_total_t[1], min_total_t[1]))
-      print("scatter     time MAX=%8.2f  MIN=%8.2f" % (max_total_t[2], min_total_t[2]))
-      print("scatterV    time MAX=%8.2f  MIN=%8.2f" % (max_total_t[3], min_total_t[3]))
-      print("read remain time MAX=%8.2f  MIN=%8.2f" % (max_total_t[4], min_total_t[4]))
+    if profile:
+      total_t = np.array([seq_time, bin_time, sca_time, scv_time, rds_time])
+      max_total_t = np.zeros(5)
+      comm.Reduce(total_t, max_total_t, op=MPI.MAX, root = 0)
+      min_total_t = np.zeros(5)
+      comm.Reduce(total_t, min_total_t, op=MPI.MIN, root = 0)
+      if rank == 0:
+        print("read seq    time MAX=%8.2f  MIN=%8.2f" % (max_total_t[0], min_total_t[0]))
+        print("bin search  time MAX=%8.2f  MIN=%8.2f" % (max_total_t[1], min_total_t[1]))
+        print("scatter     time MAX=%8.2f  MIN=%8.2f" % (max_total_t[2], min_total_t[2]))
+        print("scatterV    time MAX=%8.2f  MIN=%8.2f" % (max_total_t[3], min_total_t[3]))
+        print("read remain time MAX=%8.2f  MIN=%8.2f" % (max_total_t[4], min_total_t[4]))
 
   def build_evt(self, start, end):
     # This process is responsible for event IDs from start to end.
