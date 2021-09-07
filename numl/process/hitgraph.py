@@ -145,10 +145,10 @@ def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.del
 
   if rank == 0:
     print("Number of MPI processes = ", nprocs)
-    print("read file file  time MAX=%8.2f  MIN=%8.2f" % (max_total_t[0], min_total_t[0]))
+    print("read from file  time MAX=%8.2f  MIN=%8.2f" % (max_total_t[0], min_total_t[0]))
     print("build dataframe time MAX=%8.2f  MIN=%8.2f" % (max_total_t[1], min_total_t[1]))
     print("graph creation  time MAX=%8.2f  MIN=%8.2f" % (max_total_t[2], min_total_t[2]))
-    print("write to file   time MAX=%8.2f  MIN=%8.2f" % (max_total_t[3], min_total_t[3]))
+    print("write to files  time MAX=%8.2f  MIN=%8.2f" % (max_total_t[3], min_total_t[3]))
     print("total           time MAX=%8.2f  MIN=%8.2f" % (max_total_t[4], min_total_t[4]))
     print("(MAX and MIN timings are among %d processes)" % nprocs)
 
