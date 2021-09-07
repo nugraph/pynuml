@@ -6,10 +6,18 @@ def _init():
   mpl.rc('font', weight='bold', size=36)
   return plt.subplots(figsize=[16,9])
 
-def _format(ax):
+def _get_plane_str(plane_num):
+    if plane_num == 0:
+        return 'U'
+    elif plane_num == 1:
+        return 'V'
+    else:
+        return 'Y'
+
+def _format(ax, plane_num):
   """Default plot formatting"""
   ax.autoscale()
-  plt.xlabel("Wire")
+  plt.xlabel("Wire on Plane " + _get_plane_str(plane_num))
   plt.ylabel("Time tick")
   plt.tight_layout()
 
@@ -29,16 +37,17 @@ def _get_lines(g, score):
 def plot_node_score(g, y):
   """Plot graph nodes, colour-coded by node label"""
   fig, ax = _init()
-  c = np.array(sns.color_palette())[y]
+  colors = ['red', 'green', 'blue']
+  c = np.array(colors)[y]
   plt.scatter(g["x"][:,1], g["x"][:,2], c=c, s=8)
-  _format(ax)
+  _format(ax, int(g["x"][0,0].item()))
 
 def plot_edge_score(g, y):
   """Plot graph edges, colour-coded by edge score"""
   fig, ax = _init()
   lcs = _get_lines(g, y)
   for lc in lcs: ax.add_collection(lc)
-  _format(ax)
+  _format(ax, int(g["x"][0,0].item()))
 
 def plot_edge_diff(g, y):
   """Plot graph edges, highlighting edges that were misclassified"""
@@ -46,5 +55,5 @@ def plot_edge_diff(g, y):
   y = (y != g.y)
   lcs = _get_lines(g, y)
   for lc in lcs: ax.add_collection(lc)
-  _format(ax)
+  _format(ax, int(g["x"][0,0].item()))
 
