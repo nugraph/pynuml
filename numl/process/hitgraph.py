@@ -2,7 +2,7 @@ import pandas as pd, torch, torch_geometric as tg
 from ..core.file import NuMLFile
 from ..labels import *
 from ..graph import *
-from ..core.out import PTOut
+from ..core.out import PTOut, H5Out
 from mpi4py import MPI
 import numpy as np
 
@@ -61,8 +61,9 @@ def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.del
   timing = start_t
   """Process all events in a file into graphs"""
   if rank == 0:
-    print(f"Processing file: {fname}")
-    print(f"Output folder: {out.outdir}")
+    print(f"Processing input file: {fname}")
+    if isinstance(out, PTOut): print(f"Output folder: {out.outdir}")
+    if isinstance(out, H5Out): print(f"Output file: {out.fname}")
 
   # open input file and read dataset "/event_table/event_id.seq_cnt"
   f = NuMLFile(fname)
@@ -118,13 +119,14 @@ def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.del
 
     # retrieve event sequence ID
     idx = evt_list[i]["index"]
+    event_id = f.index(idx)
 
     # avoid overwriting to already existing files
-    import os.path as osp
-    event_id = f.index(idx)
-    if osp.exists(f"{out.outdir}/r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}_p0.pt"):
-      # print(f"{rank}: skipping event ID {event_id}")
-      continue
+    if isinstance(out, PTOut):
+      import os.path as osp
+      if osp.exists(f"{out.outdir}/r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}_p0.pt"):
+        # print(f"{rank}: skipping event ID {event_id}")
+        continue
     tmp = g(event_id, evt_list[i], l, e)
     graph_time += MPI.Wtime() - timing
 

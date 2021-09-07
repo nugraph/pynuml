@@ -9,10 +9,11 @@ class PTOut:
 
 class H5Out:
   def __init__(self, fname):
+    self.fname = fname
     self.f = h5py.File(fname, "w")
 
   def save(self, obj, name):
-    for key, val in obj.items():
+    for key, val in obj:
       self.f.create_dataset(f"/{name}/{key}", data=val, compression="gzip")
 #    self.f.create_dataset(name, data=obj, compression="gzip")
 
