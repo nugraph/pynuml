@@ -66,8 +66,9 @@ class NuMLFile:
       # retrieve all the dataset names of the group
       keys = list(self._fd[group].keys())
       # dataset event_id is not needed
-      keys.remove("event_id")
-      keys.remove("event_id.seq_cnt")
+      if "event_id" in keys: keys.remove("event_id")
+      if "event_id.seq" in keys: keys.remove("event_id.seq")
+      if "event_id.seq_cnt" in keys: keys.remove("event_id.seq_cnt")
     self._groups.append([ group, keys ])
 
   def keys(self):
