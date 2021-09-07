@@ -48,7 +48,7 @@ def single_plane_graph(event_id, evt, l=ccqe.hit_label, e=edges.knn, **edge_args
       pos=pos,
     )
     data = e(data, **edge_args)
-    ret.append([f"r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}_p0", data])
+    ret.append([f"r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}_p{p}", data])
   return ret
 
 def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.delaunay, p=None):
