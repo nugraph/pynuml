@@ -275,6 +275,6 @@ def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.del
       print("label           time MAX=%8.2f  MIN=%8.2f" % (max_total_t[7], min_total_t[7]))
       print("hit_table merge time MAX=%8.2f  MIN=%8.2f" % (max_total_t[8], min_total_t[8]))
       print("plane build     time MAX=%8.2f  MIN=%8.2f" % (max_total_t[9], min_total_t[9]))
-      print("torch           time MAX=%8.2f  MIN=%8.2f" % (max_total_t[10], min_total_t[11]))
-      print("knn             time MAX=%8.2f  MIN=%8.2f" % (max_total_t[10], min_total_t[11]))
+      print("torch           time MAX=%8.2f  MIN=%8.2f" % (max_total_t[10], min_total_t[10]))
+      print("knn             time MAX=%8.2f  MIN=%8.2f" % (max_total_t[11], min_total_t[11]))
 
