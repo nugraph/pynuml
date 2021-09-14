@@ -10,13 +10,15 @@
   + setenv CC cc
   + module load cray-hdf5-parallel
   + pip install --no-binary=h5py h5py
-  + pip3 install torch
-  + pip3 install numpy
+  + pip install torch
+  + pip install numpy
   + pip install torch-scatter
   + pip install torch-sparse
   + pip install torch-geometric
 
 * On a local Linux machine
+  + Install MPICH
+  + Install HDF5 with parallel feature enabled
   + virtualenv --system-site-packages -p python3 ~/venv
   + source ~/venv/bin/activate.csh
   + wget https://bitbucket.org/mpi4py/mpi4py/downloads/mpi4py-3.1.1.tar.gz
@@ -24,14 +26,17 @@
   + cd mpi4py-3.1.1
   + python3 setup.py build
   + python3 setup.py install
-  + pip3 install pandas
-  + pip3 install h5py
-  + pip3 install boost_histogram
-  + pip3 install torch
-  + pip3 install numpy
-  + pip3 install torch-scatter
-  + pip3 install torch-sparse
-  + pip3 install torch-geometric
+  + setenv HDF5_MPI ON
+  + setenv HDF5_DIR /hdf5/install/path
+  + setenv CC mpicc
+  + pip install --no-binary=h5py h5py
+  + pip install pandas
+  + pip install boost_histogram
+  + pip install torch
+  + pip install numpy
+  + pip install torch-scatter
+  + pip install torch-sparse
+  + pip install torch-geometric
 
 ### Run commands
 * On Cori at NERSC
