@@ -40,7 +40,7 @@
 
 ### Run commands
 * On Cori at NERSC
-  + Concatenate multiple HDF5 files into single one.
+  + Concatenate multiple HDF5 files into a single file.
     * Clone and build `ph5cacat`
       ```
       git clone https://github.com/NU-CUCIS/ph5concat
@@ -49,9 +49,10 @@
       ./configure --with-hdf5=$HDF5_DIR
       make
       ```
-    * Run concatenate program `ph5_concat`. below is an example batch script
-      file that allocates 64 MPI processes on 4 Haswell nodes to concatenate 89
-      uboone files.
+    * Run concatenate program `ph5_concat` in parallel on Cori compute nodes.
+      Below gives an example batch script file that allocates 64 MPI processes
+      on 4 Haswell nodes to concatenate 89 uboone files. Input file `numu_slice.txt`
+      contains a list of file path names of the 89 uboone files.
       ```
       % cat sbatch.sh
       #!/bin/bash -l
@@ -70,19 +71,18 @@
 
       srun -n $NP ./ph5_concat -i numu_slice.txt -o $SCRATCH/FS_1M_64/numu_slice_89_seq_cnt_seq.h5
       ````
-    * Then, run utility program `utils/add_key` to add the partition key
-      datasets in all groups.
+    * Then, go the directory `utils` and run the utility program `utils/add_key`
+      to add the partition key datasets to the concatenated file.
       ````
-      ./add_key -k /event_table/event_id -a dummy.h5
       ./add_key -k /event_table/event_id -c $SCRATCH/FS_1M_64/numu_slice_89_seq_cnt_seq.h5
       ````
   + A copy of the concatenated uboone file with partition key added is
-    available on the Lustre file system (SCRATCH).
+    available on Cori. The file size is 14 GB.
     ```
     /global/cscratch1/sd/wkliao/uboone/numu_slice_89_seq_cnt_seq.h5
     ```
-  + Below is the batch script file for generating the graphs that runs 128 MPI
-    processes on 2 KNL nodes.
+  + Below is the batch script file for generating the graph files.
+    It allocates 128 MPI processes on 2 KNL nodes.
     ```
     % cat sbatch.sh
     #!/bin/bash -l
@@ -113,7 +113,7 @@
           -o /scratch/output
   ```
 
-* Example output:
+* Example output from the 128-processes run on Cori:
   ```
   Processing input file: /global/cscratch1/sd/wkliao/uboone/numu_slice_89_seq_cnt_seq.h5
   Output folder: /global/cscratch1/sd/wkliao/uboone_out
