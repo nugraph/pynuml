@@ -40,9 +40,51 @@
 
 ### Run commands
 * On Cori at NERSC
-  + Here is the batch script file that runs 128 MPI processes on 2 KNL nodes
+  + Concatenate multiple HDF5 files into single one.
+    * Clone and build `ph5cacat`
+      ```
+      git clone https://github.com/NU-CUCIS/ph5concat
+      cd ph5concat
+      module load cray-hdf5-parallel
+      ./configure --with-hdf5=$HDF5_DIR
+      make
+      ```
+    * Run concatenate program `ph5_concat`. below is an example batch script
+      file that allocates 64 MPI processes on 4 Haswell nodes to concatenate 89
+      uboone files.
+      ```
+      % cat sbatch.sh
+      #!/bin/bash -l
+      #SBATCH -A m3253
+      #SBATCH -t 00:20:00
+      #SBATCH --nodes=4
+      #SBATCH --tasks-per-node=16
+      #SBATCH --constraint=haswell
+      #SBATCH -o qout.64.%j
+      #SBATCH -e qout.64.%j
+      #SBATCH -L SCRATCH
+      #SBATCH --qos=debug
+
+      NP=64
+      cd $PWD
+
+      srun -n $NP ./ph5_concat -i numu_slice.txt -o $SCRATCH/FS_1M_64/numu_slice_89_seq_cnt_seq.h5
+      ````
+    * Then, run utility program `utils/add_key` to add the partition key
+      datasets in all groups.
+      ````
+      ./add_key -k /event_table/event_id -a dummy.h5
+      ./add_key -k /event_table/event_id -c $SCRATCH/FS_1M_64/numu_slice_89_seq_cnt_seq.h5
+      ````
+  + A copy of the concatenated uboone file with partition key added is
+    available on the Lustre file system (SCRATCH).
     ```
-    % cat sbatch.sh 
+    /global/cscratch1/sd/wkliao/uboone/numu_slice_89_seq_cnt_seq.h5
+    ```
+  + Below is the batch script file for generating the graphs that runs 128 MPI
+    processes on 2 KNL nodes.
+    ```
+    % cat sbatch.sh
     #!/bin/bash -l
     #SBATCH -t 00:20:00
     #SBATCH --nodes=2
@@ -101,6 +143,6 @@
   label           time MAX=  342.62  MIN=  269.74
   hit_table merge time MAX=   31.40  MIN=   26.50
   plane build     time MAX=   61.19  MIN=   51.77
-  torch           time MAX=   26.93  MIN=   47.78
-  knn             time MAX=   26.93  MIN=   47.78
+  torch           time MAX=   47.78  MIN=   26.93
+  knn             time MAX=   47.78  MIN=   26.93
   ```
