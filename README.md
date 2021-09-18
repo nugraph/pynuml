@@ -81,8 +81,9 @@
     ```
     /global/cscratch1/sd/wkliao/uboone/numu_slice_89_seq_cnt_seq.h5
     ```
-  + Below is the batch script file for generating the graph files.
-    It allocates 128 MPI processes on 2 KNL nodes.
+  + Below is the batch script file for generating the graph files. It allocates
+    128 MPI processes on 2 KNL nodes. The output files are in HDF5 format and
+    there are 128 files, one per MPI process.
     ```
     % cat sbatch.sh
     #!/bin/bash -l
@@ -100,49 +101,49 @@
     export KMP_AFFINITY=disabled
     conda activate h5pyenv
 
-    srun -n $NP python3 example/process.py -p \
+    srun -n $NP python3 example/process.py -p -5 \
          -i $SCRATCH/uboone/numu_slice_89_seq_cnt_seq.h5 \
-         -o $SCRATCH/uboone_out
+         -o $SCRATCH/uboone_out/numu_slice
     ````
 * On a local Linux machine
   + To run on 8 MPI processes:
   ```
   source ~/venv/bin/activate.csh
-  mpiexec -l -n 8 python example/process.py -p \
+  mpiexec -l -n 8 python example/process.py -p -5 \
           -i /scratch/x0123_seq_cnt_seq.h5 \
-          -o /scratch/output
+          -o /scratch/output/x0123
   ```
 
-* Example output from the 128-processes run on Cori:
+* Example output from a 128-process run on Cori:
   ```
   Processing input file: /global/cscratch1/sd/wkliao/uboone/numu_slice_89_seq_cnt_seq.h5
-  Output folder: /global/cscratch1/sd/wkliao/uboone_out
+  Output file: /global/cscratch1/sd/wkliao/uboone_out/numu_slice.0000.h5
   Size of event_table/event_id is  574174
   ------------------------------------------------------------------
   Use event_id.seq_cnt as graph IDs
-  read seq    time MAX=    0.42  MIN=    0.00
-  bin search  time MAX=    2.33  MIN=    0.00
+  read seq    time MAX=    0.39  MIN=    0.00
+  bin search  time MAX=    2.34  MIN=    0.00
   scatter     time MAX=    0.00  MIN=    0.00
-  scatterV    time MAX=    0.09  MIN=    0.00
-  read remain time MAX=    3.30  MIN=    2.57
+  scatterV    time MAX=    0.11  MIN=    0.00
+  read remain time MAX=    2.99  MIN=    2.48
   ------------------------------------------------------------------
   Number of MPI processes =  128
   Total number of graphs =  537165
   Local number of graphs MAX= 4503     MIN= 3879
   Local graph size       MAX=  147.13  MIN=  124.57 (MiB)
   ------------------------------------------------------------------
-  read from file  time MAX=    8.25  MIN=    7.97
-  build dataframe time MAX=   60.50  MIN=   36.03
-  graph creation  time MAX=  652.59  MIN=  552.08
-  write to files  time MAX=   75.78  MIN=   64.41
-  total           time MAX=  791.44  MIN=  686.86
+  read from file  time MAX=    6.03  MIN=    5.82
+  build dataframe time MAX=   56.54  MIN=   35.19
+  graph creation  time MAX=  666.21  MIN=  458.51
+  write to files  time MAX=   65.39  MIN=   49.37
+  total           time MAX=  794.20  MIN=  572.70
   (MAX and MIN timings are among 128 processes)
   ------------------------------------------------------------------
-  edep grouping   time MAX=   25.04  MIN=   21.22
-  edep merge      time MAX=   55.37  MIN=   48.16
-  label           time MAX=  342.62  MIN=  269.74
-  hit_table merge time MAX=   31.40  MIN=   26.50
-  plane build     time MAX=   61.19  MIN=   51.77
-  torch           time MAX=   47.78  MIN=   26.93
-  knn             time MAX=   47.78  MIN=   26.93
+  edep grouping   time MAX=   26.06  MIN=   19.69
+  edep merge      time MAX=   59.00  MIN=   44.30
+  label           time MAX=  334.41  MIN=  205.81
+  hit_table merge time MAX=   33.98  MIN=   23.98
+  plane build     time MAX=   66.00  MIN=   48.38
+  torch           time MAX=   29.12  MIN=   21.39
+  knn             time MAX=   62.69  MIN=   45.48
   ```
