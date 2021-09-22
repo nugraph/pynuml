@@ -121,6 +121,7 @@ def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.del
 
   """Process all events in a file into graphs"""
   if rank == 0:
+    print("------------------------------------------------------------------")
     print(f"Processing input file: {fname}")
     if isinstance(out, PTOut): print(f"Output folder: {out.outdir}")
     if isinstance(out, H5Out): print(f"Output file: {out.fname}")
@@ -135,8 +136,6 @@ def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.del
 
   # number of unique event IDs in the input file
   event_id_len = len(f)
-  if rank == 0:
-    print("Size of event_table/event_id is ", event_id_len)
 
   # Calculate the start and end evt.seq id for each process
   starts = []
@@ -256,12 +255,22 @@ def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.del
     comm.Reduce(local_size, min_size, op=MPI.MIN, root = 0)
 
     if rank == 0:
+      print("---- Timing break down of graph creation phase -------------------")
+      print("edep grouping   time MAX=%8.2f  MIN=%8.2f" % (max_total_t[5], min_total_t[5]))
+      print("edep merge      time MAX=%8.2f  MIN=%8.2f" % (max_total_t[6], min_total_t[6]))
+      print("labelling       time MAX=%8.2f  MIN=%8.2f" % (max_total_t[7], min_total_t[7]))
+      print("hit_table merge time MAX=%8.2f  MIN=%8.2f" % (max_total_t[8], min_total_t[8]))
+      print("plane build     time MAX=%8.2f  MIN=%8.2f" % (max_total_t[9], min_total_t[9]))
+      print("torch_geometric time MAX=%8.2f  MIN=%8.2f" % (max_total_t[10], min_total_t[10]))
+      print("edge knn        time MAX=%8.2f  MIN=%8.2f" % (max_total_t[11], min_total_t[11]))
+      print("(MAX and MIN timings are among %d processes)" % nprocs)
       print("------------------------------------------------------------------")
       print("Number of MPI processes = ", nprocs)
-      print("Total number of graphs = ", sum_num_graphs[0])
-      print("Local number of graphs MAX= %4d     MIN= %4d" % (max_size[1], min_size[1]))
-      print("Local graph size       MAX=%8.2f  MIN=%8.2f (MiB)" % (max_size[0]/1048576.0, min_size[0]/1048576.0))
-      print("------------------------------------------------------------------")
+      print("Number of event IDs     = ", event_id_len)
+      print("Total no. of graphs     = ", sum_num_graphs[0])
+      print("Local no. of graphs  MAX= %6d   MIN= %6d" % (max_size[1], min_size[1]))
+      print("Local graph size     MAX=%8.2f  MIN=%8.2f (MiB)" % (max_size[0]/1048576.0, min_size[0]/1048576.0))
+      print("---- Top-level timing breakdown ----------------------------------")
       print("read from file  time MAX=%8.2f  MIN=%8.2f" % (max_total_t[0], min_total_t[0]))
       print("build dataframe time MAX=%8.2f  MIN=%8.2f" % (max_total_t[1], min_total_t[1]))
       print("graph creation  time MAX=%8.2f  MIN=%8.2f" % (max_total_t[2], min_total_t[2]))
@@ -269,12 +278,4 @@ def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.del
       print("total           time MAX=%8.2f  MIN=%8.2f" % (max_total_t[4], min_total_t[4]))
       print("(MAX and MIN timings are among %d processes)" % nprocs)
 
-      print("------------------------------------------------------------------")
-      print("edep grouping   time MAX=%8.2f  MIN=%8.2f" % (max_total_t[5], min_total_t[5]))
-      print("edep merge      time MAX=%8.2f  MIN=%8.2f" % (max_total_t[6], min_total_t[6]))
-      print("label           time MAX=%8.2f  MIN=%8.2f" % (max_total_t[7], min_total_t[7]))
-      print("hit_table merge time MAX=%8.2f  MIN=%8.2f" % (max_total_t[8], min_total_t[8]))
-      print("plane build     time MAX=%8.2f  MIN=%8.2f" % (max_total_t[9], min_total_t[9]))
-      print("torch           time MAX=%8.2f  MIN=%8.2f" % (max_total_t[10], min_total_t[10]))
-      print("knn             time MAX=%8.2f  MIN=%8.2f" % (max_total_t[11], min_total_t[11]))
 

@@ -271,16 +271,17 @@ class NuMLFile:
       min_total_t = np.zeros(5)
       comm.Reduce(total_t, min_total_t, op=MPI.MIN, root = 0)
       if rank == 0:
-        print("------------------------------------------------------------------")
+        print("---- Timing break down of the file read phase --------------------")
         if self._use_seq_cnt:
           print("Use event_id.seq_cnt as graph IDs")
         else:
           print("Use event_id.seq as graph IDs")
-        print("read seq    time MAX=%8.2f  MIN=%8.2f" % (max_total_t[0], min_total_t[0]))
-        print("bin search  time MAX=%8.2f  MIN=%8.2f" % (max_total_t[1], min_total_t[1]))
-        print("scatter     time MAX=%8.2f  MIN=%8.2f" % (max_total_t[2], min_total_t[2]))
-        print("scatterV    time MAX=%8.2f  MIN=%8.2f" % (max_total_t[3], min_total_t[3]))
-        print("read remain time MAX=%8.2f  MIN=%8.2f" % (max_total_t[4], min_total_t[4]))
+        print("read seq_cnt    time MAX=%8.2f  MIN=%8.2f" % (max_total_t[0], min_total_t[0]))
+        print("calc boundaries time MAX=%8.2f  MIN=%8.2f" % (max_total_t[1], min_total_t[1]))
+        print("MPI scatter     time MAX=%8.2f  MIN=%8.2f" % (max_total_t[2], min_total_t[2]))
+        print("MPI scatterV    time MAX=%8.2f  MIN=%8.2f" % (max_total_t[3], min_total_t[3]))
+        print("read remain     time MAX=%8.2f  MIN=%8.2f" % (max_total_t[4], min_total_t[4]))
+        print("(MAX and MIN timings are among %d processes)" % nprocs)
 
   def build_evt(self, start, end):
     # This process is responsible for event IDs from start to end.
