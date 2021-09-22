@@ -3,6 +3,8 @@
 ### Set up python environment
 * On Cori at NERSC
   + rm -rf .conda/envs/h5pyenv
+  + module load python
+  + conda init    <--- run this only when first time use of conda
   + conda create --name h5pyenv --clone lazy-mpi4py
   + conda activate h5pyenv
   + module swap PrgEnv-intel PrgEnv-gnu
@@ -15,6 +17,7 @@
   + pip install torch-scatter
   + pip install torch-sparse
   + pip install torch-geometric
+  + See more information in [Python User Guide](https://docs.nersc.gov/development/languages/python/nersc-python) and [Parallelism in Python](https://docs.nersc.gov/development/languages/python/parallel-python) at NERSC.
 
 * On a local Linux machine
   + Install MPICH
