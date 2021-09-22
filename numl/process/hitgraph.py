@@ -255,7 +255,7 @@ def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.del
     comm.Reduce(local_size, min_size, op=MPI.MIN, root = 0)
 
     if rank == 0:
-      print("---- Timing break down of graph creation phase -------------------")
+      print("---- Timing break down of graph creation phase (in seconds) ------")
       print("edep grouping   time MAX=%8.2f  MIN=%8.2f" % (max_total_t[5], min_total_t[5]))
       print("edep merge      time MAX=%8.2f  MIN=%8.2f" % (max_total_t[6], min_total_t[6]))
       print("labelling       time MAX=%8.2f  MIN=%8.2f" % (max_total_t[7], min_total_t[7]))
@@ -270,7 +270,7 @@ def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.del
       print("Total no. of graphs     = ", sum_num_graphs[0])
       print("Local no. of graphs  MAX= %6d   MIN= %6d" % (max_size[1], min_size[1]))
       print("Local graph size     MAX=%8.2f  MIN=%8.2f (MiB)" % (max_size[0]/1048576.0, min_size[0]/1048576.0))
-      print("---- Top-level timing breakdown ----------------------------------")
+      print("---- Top-level timing breakdown (in seconds) ---------------------")
       print("read from file  time MAX=%8.2f  MIN=%8.2f" % (max_total_t[0], min_total_t[0]))
       print("build dataframe time MAX=%8.2f  MIN=%8.2f" % (max_total_t[1], min_total_t[1]))
       print("graph creation  time MAX=%8.2f  MIN=%8.2f" % (max_total_t[2], min_total_t[2]))

@@ -271,7 +271,7 @@ class NuMLFile:
       min_total_t = np.zeros(5)
       comm.Reduce(total_t, min_total_t, op=MPI.MIN, root = 0)
       if rank == 0:
-        print("---- Timing break down of the file read phase --------------------")
+        print("---- Timing break down of the file read phase (in seconds) -------")
         if self._use_seq_cnt:
           print("Use event_id.seq_cnt as graph IDs")
         else:
