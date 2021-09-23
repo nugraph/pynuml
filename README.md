@@ -150,3 +150,31 @@
   torch           time MAX=   29.12  MIN=   21.39
   knn             time MAX=   62.69  MIN=   45.48
   ```
+* Merge multiple output HDF5 files into one
+  + When command-line option '-5' is used, the number of output HDF5 files is
+    equal to the number of MPI processes used to run 'example/process.py'.
+  + The utility program 'h5merge.py' can be used to merge the output files into
+    a single HDF5, by appending one file after another.
+  + 'h5merge.py' takes command-line option '-i input_file' and '-o output.h5'
+    where 'input_file' is a text file containing the names of files to be
+    merged, one file name per line.
+  + Note this utility program requires the HDF5 utility program 'h5copy'. Make
+    sure 'h5copy' is available under PATH environment variable. For instance,
+    by running command 'module load hdf5'
+  + Below is an example run command:
+    ```
+    % cat in_file_names.txt
+    x1_graphs.0000.h5
+    x1_graphs.0001.h5
+    x1_graphs.0002.h5
+    x1_graphs.0003.h5
+
+    % python h5merge.py -i in_file_names.txt -o output.h5
+    input file name = in_file_names.txt
+    output file name = output.h5
+    copy file: x1_graphs.0000.h5
+    copy file: x1_graphs.0001.h5
+    copy file: x1_graphs.0002.h5
+    copy file: x1_graphs.0003.h5
+    ```
+
