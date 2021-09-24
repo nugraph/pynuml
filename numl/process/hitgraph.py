@@ -160,7 +160,7 @@ def process_event(out, key, hit, part, edep, sp, l=ccqe.semantic_label, e=edges.
     data["edge_index_3d"+suffix] = torch.tensor(blah).transpose(0, 1).long()
   out.save(tg.data.Data(**data), f"r{key[0]}_sr{key[1]}_evt{key[2]}")
 
-def process_file(out, fname, g=single_plane_graph, l=ccqe.semantic_label, e=edges.delaunay, p=None, use_seq=False, profile=False):
+def process_file(out, fname, g=process_event_singleplane, l=ccqe.semantic_label, e=edges.delaunay, p=None, use_seq=False, profile=False):
   comm = MPI.COMM_WORLD
   nprocs = comm.Get_size()
   rank = comm.Get_rank()
