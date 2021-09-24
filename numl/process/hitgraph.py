@@ -184,7 +184,7 @@ def process_file(out, fname, g=single_plane_graph, l=ccqe.semantic_label, e=edge
 
   # only use the following groups and datasets in them
   f.add_group("hit_table")
-  f.add_group("particle_table", ["event_id", "g4_id", "parent_id", "type", "momentum", "start_process", "end_process"])
+  f.add_group("particle_table", ["g4_id", "parent_id", "type", "momentum", "start_process", "end_process"])
   f.add_group("edep_table")
   f.add_group("spacepoint_table")
 
