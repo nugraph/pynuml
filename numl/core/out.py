@@ -20,8 +20,10 @@ class H5Out:
 
   def save(self, obj, name):
     for key, val in obj:
-      # self.f.create_dataset(f"/{name}/{key}", data=val, compression="gzip")
-      self.f.create_dataset(f"/{name}/{key}", data=val)
+      # set chunk sizes to val shape, so there is only one chunk per dataset
+      self.f.create_dataset(f"/{name}/{key}", data=val, chunks=val.shape, compression="gzip")
+      # below is to disable data compression (and chunking)
+      # self.f.create_dataset(f"/{name}/{key}", data=val)
 
   def __del__(self):
     self.f.close()
