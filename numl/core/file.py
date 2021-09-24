@@ -138,117 +138,134 @@ class NuMLFile:
             high = mid
     return (low - 1)
 
+  def calc_bound_seq(self, starts, ends, group):
+    # return the lower and upper array indices of subarray assigned to this
+    # process, using the partition sequence dataset
 
-  def read_data(self, starts, ends, use_seq=False, profile=False):
-    # Parallel read dataset subarrays assigned to this process ranging from
-    # array index of my_start to my_end
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     nprocs = comm.Get_size()
-    self._my_start = starts[rank]
-    self._my_end = ends[rank]
-    if use_seq: self._use_seq_cnt = False
+
+    displ = np.empty([nprocs], dtype=np.int)
+    count = np.empty([nprocs], dtype=np.int)
+    bounds = np.empty([nprocs, 2], dtype=np.int)
+
+    all_evt_seq = []
+    if rank == 0:
+      # root reads the entire dataset event_id.seq
+      all_evt_seq = self._fd[group+"/event_id.seq"][:]
+      dim = len(all_evt_seq)
+
+      # calculate displ, count to be used in scatterV for all processes
+      for i in range(nprocs):
+        bounds[i, 0] = self.binary_search_min(starts[i], all_evt_seq, dim)
+        bounds[i, 1] = self.binary_search_max(ends[i],   all_evt_seq, dim)
+        displ[i] = bounds[i, 0]
+        count[i] = bounds[i, 1] - bounds[i, 0] + 1
+
+    lower_upper = np.empty([2], dtype=np.int)
+
+    # root distributes start and end indices to all processes
+    comm.Scatter(bounds, lower_upper, root=0)
+
+    # this process is assigned array indices from lower to upper
+    # print("group=",group," lower=",lower," upper=",upper," count=",upper-lower)
+
+    lower = lower_upper[0]
+    upper = lower_upper[1] + 1
+
+    # root scatters the subarray of evt_seq to all processes
+    self._evt_seq[group] = np.zeros(upper - lower, dtype=np.int64)
+    comm.Scatterv([all_evt_seq, count, displ, MPI.LONG_LONG], self._evt_seq[group], root=0)
+
+    return lower, upper
+
+  def calc_bound_seq_cnt(self, starts, ends, group):
+    # return the lower and upper array indices of subarray assigned to this
+    # process, using the partition sequence-count dataset
+
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    nprocs = comm.Get_size()
 
     displ = np.empty([nprocs], dtype=np.int)
     count = np.empty([nprocs], dtype=np.int)
     seq_cnt = np.empty([nprocs, 2], dtype=np.int)
-    bounds  = np.empty([nprocs, 2], dtype=np.int)
 
-    seq_time = 0
-    bin_time = 0
-    sca_time = 0
-    scv_time = 0
+    all_seq_cnt = []
+    if rank == 0:
+      # root reads the entire dataset event_id.seq_cnt
+      all_seq_cnt = self._fd[group+"/event_id.seq_cnt"][:]
+      dim = len(all_seq_cnt)
+
+      # calculate displ, count for all processes to be used in scatterV
+      recv_rank = 0  # receiver rank
+      displ[recv_rank] = 0
+      seq_cnt[recv_rank, 0] = 0
+      seq_end = ends[recv_rank]
+      seq_id = 0
+      for i in range(dim):
+        if all_seq_cnt[i, 0] > seq_end :
+          seq_cnt[recv_rank, 1] = i - displ[recv_rank]
+          recv_rank += 1  # move on to the next receiver rank
+          seq_end = ends[recv_rank]
+          displ[recv_rank] = i
+          seq_cnt[recv_rank, 0] = seq_id
+        seq_id += all_seq_cnt[i, 1]
+
+      # last receiver rank
+      seq_cnt[nprocs-1, 1] = dim - displ[nprocs-1]
+
+      # print("starts=",starts," ends=",ends," displ=",displ," count=",count," seq_cnt=",seq_cnt )
+      displ[:] *= 2
+      count[:] = seq_cnt[:, 1] * 2
+
+    # root distributes seq_cnt to all processes
+    my_seq_cnt  = np.empty([2], dtype=np.int)
+    comm.Scatter(seq_cnt, my_seq_cnt, root=0)
+
+    # this process is assigned array indices from lower to upper
+    # print("group=",group," lower=",lower," upper=",upper," count=",upper-lower)
+
+    # self._seq_cnt[group][:, 0] is the event ID
+    # self._seq_cnt[group][:, 1] is the number of elements
+    self._seq_cnt[group] = np.empty([my_seq_cnt[1], 2], dtype=np.int64)
+
+    # root scatters the subarray of evt_seq to all processes
+    comm.Scatterv([all_seq_cnt, count, displ, MPI.LONG_LONG], self._seq_cnt[group], root=0)
+
+    lower = my_seq_cnt[0]
+    upper = my_seq_cnt[0] + np.sum(self._seq_cnt[group][:, 1])
+
+    return lower, upper
+
+  def read_data(self, starts, ends, use_seq=False, profile=False):
+    # Parallel read dataset subarrays assigned to this process ranging from
+    # array index of my_start to my_end
+    comm   = MPI.COMM_WORLD
+    rank   = comm.Get_rank()
+    nprocs = comm.Get_size()
+
+    self._my_start    = starts[rank]
+    self._my_end      = ends[rank]
+    self._use_seq_cnt = use_seq
+
+    bnd_time = 0
     rds_time = 0
-    if profile: time_s = MPI.Wtime()
 
     for group, datasets in self._groups:
+      if profile: time_s = MPI.Wtime()
 
-      all_seq_cnt = []
-      all_evt_seq = []
-      if rank == 0:
-        if self._use_seq_cnt:
-          # root reads the entire dataset event_id.seq_cnt
-          all_seq_cnt = self._fd[group+"/event_id.seq_cnt"][:]
-          dim = len(all_seq_cnt)
-        else:
-          all_evt_seq = self._fd[group+"/event_id.seq"][:]
-          dim = len(all_evt_seq)
-
-        if profile:
-          time_e = MPI.Wtime()
-          seq_time += time_e - time_s
-          time_s = time_e
-
-        # calculate displ, count to be used in scatterV for all processes
-        if self._use_seq_cnt:
-          recv_rank = 0  # receiver rank
-          displ[recv_rank] = 0
-          seq_cnt[recv_rank, 0] = 0
-          seq_end = ends[recv_rank]
-          seq_id = 0
-          for i in range(dim):
-            if all_seq_cnt[i, 0] > seq_end :
-              seq_cnt[recv_rank, 1] = i - displ[recv_rank]
-              recv_rank += 1  # move on to the next receiver rank
-              seq_end = ends[recv_rank]
-              displ[recv_rank] = i
-              seq_cnt[recv_rank, 0] = seq_id
-            seq_id += all_seq_cnt[i, 1]
-
-          # last receiver rank
-          seq_cnt[nprocs-1, 1] = dim - displ[nprocs-1]
-
-          # print("starts=",starts," ends=",ends," displ=",displ," count=",count," seq_cnt=",seq_cnt )
-          displ[:] *= 2
-          count[:] = seq_cnt[:, 1] * 2
-        else:
-          for i in range(nprocs):
-            bounds[i, 0] = self.binary_search_min(starts[i], all_evt_seq, dim)
-            bounds[i, 1] = self.binary_search_max(ends[i],   all_evt_seq, dim)
-            displ[i] = bounds[i, 0]
-            count[i] = bounds[i, 1] - bounds[i, 0] + 1
-
-        if profile:
-          time_e = MPI.Wtime()
-          bin_time += time_e - time_s
-          time_s = time_e
-
-      my_seq_cnt  = np.empty([2], dtype=np.int)
-      lower_upper = np.empty([2], dtype=np.int)
-
-      if self._use_seq_cnt:
-        # root distributes seq_cnt to all processes
-        comm.Scatter(seq_cnt, my_seq_cnt, root=0)
+      if use_seq:
+        # use evt_id.seq to calculate subarray boundaries
+        lower, upper = self.calc_bound_seq(starts, ends, group)
       else:
-        # root distributes start and end indices to all processes
-        comm.Scatter(bounds, lower_upper, root=0)
-
-      # this process is assigned array indices from lower to upper
-      # print("group=",group," lower=",lower," upper=",upper," count=",upper-lower)
+        # use evt_id.seq_cnt to calculate subarray boundaries
+        lower, upper = self.calc_bound_seq_cnt(starts, ends, group)
 
       if profile:
         time_e = MPI.Wtime()
-        if rank == 0: sca_time += time_e - time_s
-        time_s = time_e
-
-      if self._use_seq_cnt:
-        # self._seq_cnt[group][:, 0] is the event ID
-        # self._seq_cnt[group][:, 1] is the number of elements
-        self._seq_cnt[group] = np.empty([my_seq_cnt[1], 2], dtype=np.int64)
-
-        # root distributes all_seq_cnt/all_evt_seq to all processes
-        comm.Scatterv([all_seq_cnt, count, displ, MPI.LONG_LONG], self._seq_cnt[group], root=0)
-        lower = my_seq_cnt[0]
-        upper = my_seq_cnt[0] + np.sum(self._seq_cnt[group][:, 1])
-      else:
-        lower = lower_upper[0]
-        upper = lower_upper[1] + 1
-        self._evt_seq[group] = np.zeros(upper - lower, dtype=np.int64)
-        comm.Scatterv([all_evt_seq, count, displ, MPI.LONG_LONG], self._evt_seq[group], root=0)
-
-      if profile:
-        time_e = MPI.Wtime()
-        scv_time += time_e - time_s
+        bnd_time += time_e - time_s
         time_s = time_e
 
       # Iterate through all the datasets and read the subarray from index lower
@@ -265,22 +282,19 @@ class NuMLFile:
         time_s = time_e
 
     if profile:
-      total_t = np.array([seq_time, bin_time, sca_time, scv_time, rds_time])
-      max_total_t = np.zeros(5)
+      total_t = np.array([bnd_time, rds_time])
+      max_total_t = np.zeros(2)
       comm.Reduce(total_t, max_total_t, op=MPI.MAX, root = 0)
-      min_total_t = np.zeros(5)
+      min_total_t = np.zeros(2)
       comm.Reduce(total_t, min_total_t, op=MPI.MIN, root = 0)
       if rank == 0:
         print("---- Timing break down of the file read phase (in seconds) -------")
         if self._use_seq_cnt:
-          print("Use event_id.seq_cnt as graph IDs")
+          print("Use event_id.seq_cnt to calculate subarray boundaries")
         else:
-          print("Use event_id.seq as graph IDs")
-        print("read seq_cnt    time MAX=%8.2f  MIN=%8.2f" % (max_total_t[0], min_total_t[0]))
-        print("calc boundaries time MAX=%8.2f  MIN=%8.2f" % (max_total_t[1], min_total_t[1]))
-        print("MPI scatter     time MAX=%8.2f  MIN=%8.2f" % (max_total_t[2], min_total_t[2]))
-        print("MPI scatterV    time MAX=%8.2f  MIN=%8.2f" % (max_total_t[3], min_total_t[3]))
-        print("read remain     time MAX=%8.2f  MIN=%8.2f" % (max_total_t[4], min_total_t[4]))
+          print("Use event_id.seq to calculate subarray boundaries")
+        print("calc boundaries time MAX=%8.2f  MIN=%8.2f" % (max_total_t[0], min_total_t[0]))
+        print("read datasets   time MAX=%8.2f  MIN=%8.2f" % (max_total_t[1], min_total_t[1]))
         print("(MAX and MIN timings are among %d processes)" % nprocs)
 
   def build_evt(self, start, end):
