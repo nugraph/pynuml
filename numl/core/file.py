@@ -248,8 +248,7 @@ class NuMLFile:
 
     self._my_start    = starts[rank]
     self._my_end      = ends[rank]
-    self._use_seq_cnt = use_seq
-
+    self._use_seq_cnt = not use_seq
     bnd_time = 0
     rds_time = 0
 
