@@ -19,7 +19,6 @@ def window(data, wire_distance=5, time_distance=50):
 def delaunay(data):
   '''Form graph edges using Delaunay triangulation'''
   import torch, torch_geometric as tg
-  # data = tg.data.Data(pos=torch.tensor(hits[["global_wire", "global_time"]].values).float())
   return tg.transforms.FaceToEdge()(tg.transforms.Delaunay()(data))
 
 

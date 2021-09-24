@@ -14,7 +14,12 @@ def semantic_label(part):
     pid = row.parent_id
     while True:
       if pid == 0: return label(part.type[gid])
-      gid = part.g4_id[pid]
+      # if not pid in part.g4_id: return label(part.type[gid])
+      # gid = part.g4_id[pid]
+      try:
+        gid = part.g4_id[pid]
+      except KeyError:
+        return 2
       pid = part.parent_id[pid]
 
   # apply backtrace function to get labels
