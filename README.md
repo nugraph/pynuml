@@ -178,3 +178,14 @@
     copy file: x1_graphs.0003.h5
     ```
 
+### Performance timing breakdowns
+* Cori KNL nodes at NERSC, 64 MPI processes per node, time in seconds.
+
+   | No. MPI processes | 64      | 128    | 256    | 512    | 1024   |
+   | ----------------- |--------:|-------:|-------:|-------:|-------:|
+   | read from file    |    8.62 |   6.01 |   4.85 |   4.59 |  14.66 |
+   | build dataframes  |  100.45 |  51.02 |  28.02 |  15.13 |   7.47 |
+   | graph creation    | 1146.41 | 589.48 | 352.56 | 170.40 |  87.62 |
+   | write to files    |  105.47 |  53.72 |  39.15 |  14.47 |   7.31 |
+   | total             | 1359.55 | 699.85 | 422.17 | 204.60 | 116.78 |
+
