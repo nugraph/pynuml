@@ -40,7 +40,7 @@ def main(argv):
     # output pytorch files, one graph per file
     out = numl.core.out.PTOut(outputfile)
 
-  numl.process.hitgraph.process_file(out, inputfile, use_seq=use_seq, profile=profiling)
+  numl.process.hitgraph.process_file(out, inputfile, l=numl.labels.standard.panoptic_label, use_seq=use_seq, profile=profiling)
 
 if __name__ == "__main__":
    main(sys.argv[1:])
