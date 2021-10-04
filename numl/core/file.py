@@ -1,5 +1,6 @@
 import h5py, numpy as np, pandas as pd
 from mpi4py import MPI
+import sys
 
 class NuMLFile:
   def __init__(self, file):
@@ -153,7 +154,12 @@ class NuMLFile:
     all_evt_seq = []
     if rank == 0:
       # root reads the entire dataset event_id.seq
-      all_evt_seq = self._fd[group+"/event_id.seq"][:]
+      try:
+        all_evt_seq = self._fd[group+"/event_id.seq"][:]
+      except KeyError:
+        print("Error: dataset",group+"/event_id.seq does not exist")
+        sys.stdout.flush()
+        comm.Abort(1)
       dim = len(all_evt_seq)
 
       # calculate displ, count to be used in scatterV for all processes
@@ -195,7 +201,12 @@ class NuMLFile:
     all_seq_cnt = []
     if rank == 0:
       # root reads the entire dataset event_id.seq_cnt
-      all_seq_cnt = self._fd[group+"/event_id.seq_cnt"][:]
+      try:
+        all_seq_cnt = self._fd[group+"/event_id.seq_cnt"][:]
+      except KeyError:
+        print("Error: dataset",group+"/event_id.seq_cnt does not exist")
+        sys.stdout.flush()
+        comm.Abort(1)
       dim = len(all_seq_cnt)
 
       # calculate displ, count for all processes to be used in scatterV

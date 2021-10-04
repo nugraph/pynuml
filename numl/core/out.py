@@ -1,12 +1,19 @@
-import os.path as osp, torch, h5py
+import os, torch, h5py, sys
 from mpi4py import MPI
 
 class PTOut:
   def __init__(self, outdir):
     self.outdir = outdir
+    isExist = os.path.exists(outdir)
+    if not isExist:
+      rank = MPI.COMM_WORLD.Get_rank()
+      if rank == 0:
+        print("Error: output directory does not exist",outdir)
+      sys.stdout.flush()
+      MPI.COMM_WORLD.Abort(1)
 
   def save(self, obj, name):
-    torch.save(obj, osp.join(self.outdir, name)+".pt")
+    torch.save(obj, os.join(self.outdir, name)+".pt")
 
   def exists(self, name):
     return osp.exists(osp.join(self.outdir, name)+".pt")
