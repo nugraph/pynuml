@@ -311,7 +311,7 @@ class NuMLFile:
     # This process is responsible for event IDs from start to end.
     # All data of the same event ID will be used to create a graph.
     # This function collects all data based on event_id.seq or event_id.seq_cnt
-    # into a python list containing Panda DataFrames, one for a unique event
+    # into a python list containing Pandas DataFrames, one for a unique event
     # ID.
     ret_list = []
 
@@ -350,7 +350,7 @@ class NuMLFile:
 
       # for each event seq ID, create a dictionary, ret
       #   first item: key is "index" and value is the event seq ID
-      #   remaining items: key is group name and value is a Panda DataFrame
+      #   remaining items: key is group name and value is a Pandas DataFrame
       #   containing the dataset subarray in this group with the event ID, idx
       ret = { "index": idx }
 
@@ -363,7 +363,7 @@ class NuMLFile:
 
           if idx_grp[group] >= len(self._seq_cnt[group][:, 0]) or idx < self._seq_cnt[group][idx_grp[group], 0]:
             # idx is missing from this group but may not in other groups
-            # create an empty Panda DataFrame
+            # create an empty Pandas DataFrame
             dfs = []
             for dataset in self._data[group].keys():
               data = np.array([])
@@ -389,7 +389,7 @@ class NuMLFile:
           upper = self.binary_search_max(idx, self._evt_seq[group], dim) + 1
           # print("For idx=",idx, " lower=",lower, " upper=",upper)
 
-        # dfs is a python list containing Panda DataFrame objects
+        # dfs is a python list containing Pandas DataFrame objects
         dfs = []
         for dataset in self._data[group].keys():
           if lower >= upper:
@@ -401,7 +401,7 @@ class NuMLFile:
             # event ID == idx
             data = self._data[group][dataset][lower : upper]
 
-          # create a Panda DataFrame to store the numpy array
+          # create a Pandas DataFrame to store the numpy array
           data_dataframe = pd.DataFrame(data, columns=self._cols(group, dataset))
 
           dfs.append(data_dataframe)
