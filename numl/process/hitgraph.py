@@ -14,7 +14,6 @@ torch_t = 0.0
 plane_t = 0.0
 label_t = 0.0
 knn_t = 0.0
-my_num_graphs = 0
 profiling = False
 
 def single_plane_graph(event_id, evt, l=ccqe.hit_label, e=edges.knn, **edge_args):
@@ -25,7 +24,6 @@ def single_plane_graph(event_id, evt, l=ccqe.hit_label, e=edges.knn, **edge_args
   # if (edep.index==key).sum() == 0: return
 
   global edep1_t, edep2_t, hit_merge_t, torch_t, plane_t, label_t, knn_t
-  global my_num_graphs
   global profiling
   if profiling:
     start_t = MPI.Wtime()
@@ -98,7 +96,6 @@ def single_plane_graph(event_id, evt, l=ccqe.hit_label, e=edges.knn, **edge_args
 
     data = e(data, **edge_args)
     ret.append([f"r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}_p{p}", data])
-    my_num_graphs += 1
 
     if profiling:
       end_t = MPI.Wtime()
@@ -171,27 +168,30 @@ def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.del
   if profiling:
     build_list_time = MPI.Wtime() - timing
     comm.Barrier()
-    write_time = 0
-    graph_time = 0
-    local_size = np.zeros(2)
+    write_time   = 0
+    graph_time   = 0
+    num_evts     = 0            # no. events assigned to this process
+    evt_size_max = 0            # max event size assigned to this process
+    evt_size_min = sys.maxsize  # min event size assigned to this process
+    evt_size_sum = 0            # sum of event sizes assigned to this process
+    num_grps     = 0            # no. graphs created by this process
+    grp_size_max = 0            # max graph size created by this process
+    grp_size_min = sys.maxsize  # min graph size created by this process
+    grp_size_sum = 0            # sum of graph sizes created by this process
 
-  # num_planes = 3
-  # num_evts = len(evt_list) * num_planes
-  # edge_index = np.empty((num_evts, 2), int)
-  # print("edge_index.ndim=\n", edge_index.ndim)
-  # print("edge_index.shape=\n", edge_index.shape)
-  # pos = np.empty((num_evts, 2), int)
-  # x   = np.empty((num_evts, 2), int)
-  # y   = np.empty((num_evts, 1), int)
-
-  # j = 0
   # Iterate through event IDs, construct graphs and save them in files
   for i in range(len(evt_list)):
     if profiling:
       timing = MPI.Wtime()
+      evt_size = 0
       for group in evt_list[i].keys():
         if group != "index":
-          local_size[0] += sys.getsizeof(evt_list[i][group])
+          # size in bytes of a Pandas DataFrames
+          evt_size += sys.getsizeof(evt_list[i][group])
+      num_evts += 1
+      evt_size_sum += evt_size
+      if evt_size > evt_size_max : evt_size_max = evt_size
+      if evt_size < evt_size_min : evt_size_min = evt_size
 
     # retrieve event sequence ID
     idx = evt_list[i]["index"]
@@ -204,6 +204,8 @@ def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.del
         # print(f"{rank}: skipping event ID {event_id}")
         continue
 
+    # create graphs using data in evt_list[i]
+    # Note an event may create more than one graph
     tmp = g(event_id, evt_list[i], l, e)
 
     if profiling:
@@ -214,45 +216,70 @@ def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.del
       for name, data in tmp:
         # print("saving", name)
         out.save(data, name)
-        # print("type of data =", type(data))
-        # edge_index[j] = list(data.edge_index.size())
-        # pos[j] = list(data.pos.size())
-        # x[j] = list(data.x.size())
-        # y[j] = list(data.y.size())
-        # j += 1
-
-    # if j == 1: break
+        if profiling:
+          grp_size = 0
+          for key, val in data:
+            # calculate size in bytes of val, a pytorch tensor
+            grp_size += val.element_size() * val.nelement()
+          num_grps += 1
+          grp_size_sum += grp_size
+          if grp_size > grp_size_max : grp_size_max = grp_size
+          if grp_size < grp_size_min : grp_size_min = grp_size
 
     if profiling:
       write_time += MPI.Wtime() - timing
-
-  # print("edge_index=\n", edge_index)
-  # print("pos=\n", pos)
-  # print("x=\n", x)
-  # print("y=\n", y)
-  # print("j=\n", j)
 
   if profiling:
     total_time = MPI.Wtime() - start_t
 
     global edep1_t, edep2_t, hit_merge_t, torch_t, plane_t, label_t, knn_t
-    global my_num_graphs
 
     total_t = np.array([read_time, build_list_time, graph_time, write_time, total_time, edep1_t, edep2_t, label_t, hit_merge_t, plane_t, torch_t, knn_t])
     max_total_t = np.zeros(12)
-    comm.Reduce(total_t, max_total_t, op=MPI.MAX, root = 0)
+    comm.Reduce(total_t, max_total_t, op=MPI.MAX, root=0)
     min_total_t = np.zeros(12)
-    comm.Reduce(total_t, min_total_t, op=MPI.MIN, root = 0)
+    comm.Reduce(total_t, min_total_t, op=MPI.MIN, root=0)
 
-    num_graphs = np.array([my_num_graphs], dtype=np.int)
-    sum_num_graphs = np.zeros(1, dtype=np.int)
-    comm.Reduce(num_graphs, sum_num_graphs, op=MPI.SUM, root = 0)
+    local_counts  = np.empty(6, dtype=np.int64)
+    global_counts = np.empty(6, dtype=np.int64)
 
-    local_size[1] = num_graphs
-    max_size = np.zeros(2)
-    comm.Reduce(local_size, max_size, op=MPI.MAX, root = 0)
-    min_size = np.zeros(2)
-    comm.Reduce(local_size, min_size, op=MPI.MIN, root = 0)
+    local_counts[0] = num_evts
+    local_counts[1] = evt_size_max
+    local_counts[2] = num_grps
+    local_counts[3] = grp_size_max
+    local_counts[4] = evt_size_sum
+    local_counts[5] = grp_size_sum
+    comm.Reduce(local_counts, global_counts, op=MPI.MAX, root=0)
+    num_evts_max     = global_counts[0]
+    evt_size_max     = global_counts[1]
+    num_grps_max     = global_counts[2]
+    grp_size_max     = global_counts[3]
+    evt_size_sum_max = global_counts[4]
+    grp_size_sum_max = global_counts[5]
+
+    local_counts[0] = num_evts
+    local_counts[1] = evt_size_min
+    local_counts[2] = num_grps
+    local_counts[3] = grp_size_min
+    local_counts[4] = evt_size_sum
+    local_counts[5] = grp_size_sum
+    comm.Reduce(local_counts, global_counts, op=MPI.MIN, root=0)
+    num_evts_min     = global_counts[0]
+    evt_size_min     = global_counts[1]
+    num_grps_min     = global_counts[2]
+    grp_size_min     = global_counts[3]
+    evt_size_sum_min = global_counts[4]
+    grp_size_sum_min = global_counts[5]
+
+    local_counts[0] = num_evts
+    local_counts[1] = evt_size_sum
+    local_counts[2] = num_grps
+    local_counts[3] = grp_size_sum
+    comm.Reduce(local_counts, global_counts, op=MPI.SUM, root=0)
+    num_evts     = global_counts[0]
+    evt_size_sum = global_counts[1]
+    num_grps     = global_counts[2]
+    grp_size_sum = global_counts[3]
 
     if rank == 0:
       print("---- Timing break down of graph creation phase (in seconds) ------")
@@ -265,11 +292,21 @@ def process_file(out, fname, g=single_plane_graph, l=ccqe.hit_label, e=edges.del
       print("edge knn        time MAX=%8.2f  MIN=%8.2f" % (max_total_t[11], min_total_t[11]))
       print("(MAX and MIN timings are among %d processes)" % nprocs)
       print("------------------------------------------------------------------")
-      print("Number of MPI processes = ", nprocs)
-      print("Number of event IDs     = ", event_id_len)
-      print("Total no. of graphs     = ", sum_num_graphs[0])
-      print("Local no. of graphs  MAX= %6d   MIN= %6d" % (max_size[1], min_size[1]))
-      print("Local graph size     MAX=%8.2f  MIN=%8.2f (MiB)" % (max_size[0]/1048576.0, min_size[0]/1048576.0))
+      print("Number of MPI processes          =%8d" % nprocs)
+      print("Total no. event IDs              =%8d" % event_id_len)
+      print("Total no. non-empty events       =%8d" % num_evts)
+      print("Size of all events               =%10.1f MiB" % (evt_size_sum/1048576.0))
+      print("Local no. events assigned     MAX=%8d   MIN=%8d   AVG=%10.1f" % (num_evts_max, num_evts_min,num_evts/nprocs))
+      print("Local indiv event size in KiB MAX=%10.1f MIN=%10.1f AVG=%10.1f" % (evt_size_max/1024.0, evt_size_min/1024.0, evt_size_sum/1024.0/num_evts))
+      print("Local sum   event size in MiB MAX=%10.1f MIN=%10.1f AVG=%10.1f" % (evt_size_sum_max/1048576.0, evt_size_sum_min/1048576.0, evt_size_sum/1048576.0/nprocs))
+
+      print("Total no.  of graphs             =%8d" % num_grps)
+      print("Size of all graphs               =%10.1f MiB" % (grp_size_sum/1048576.0))
+      print("Local no. graphs created      MAX=%8d   MIN=%8d   AVG=%10.1f" % (num_grps_max, num_grps_min, num_grps/nprocs))
+      print("Local indiv graph size in KiB MAX=%10.1f MIN=%10.1f AVG=%10.1f" % (grp_size_max/1024.0, grp_size_min/1024.0,grp_size_sum/1024.0/num_grps))
+      print("Local sum   graph size in MiB MAX=%10.1f MIN=%10.1f AVG=%10.1f" % (grp_size_sum_max/1048576.0, grp_size_sum_min/1048576.0, grp_size_sum/1048576.0/nprocs))
+      print("(MAX and MIN timings are among %d processes)" % nprocs)
+
       print("---- Top-level timing breakdown (in seconds) ---------------------")
       print("read from file  time MAX=%8.2f  MIN=%8.2f" % (max_total_t[0], min_total_t[0]))
       print("build dataframe time MAX=%8.2f  MIN=%8.2f" % (max_total_t[1], min_total_t[1]))
