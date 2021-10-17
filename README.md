@@ -2,21 +2,22 @@
 
 ### Set up python environment
 * On Cori at NERSC
-  + rm -rf .conda/envs/h5pyenv
   + module load python
-  + conda init    <--- run this only when first time use of conda
-  + conda create --name h5pyenv --clone lazy-mpi4py
+  + conda init `   <--- run this only when first time use of conda`
+  + conda env remove --name h5pyenv `   <--- delete conda environment h5pyenv if exists`
+  + conda create --name h5pyenv
   + conda activate h5pyenv
   + module swap PrgEnv-intel PrgEnv-gnu
-  + setenv HDF5_MPI ON
-  + setenv CC cc
+  + conda install -c defaults --override-channels numpy
+  + setenv MPICC "cc -shared" `   <--- for bash, export MPICC="cc -shared"`
+  + pip install --no-binary=mpi4py mpi4py
+  + setenv CC cc  `   <--- for bash, export CC=cc`
+  + setenv HDF5_MPI ON  `   <--- for bash, export HDF5_MPI=ON`
   + module load cray-hdf5-parallel
-  + pip install --no-binary=h5py h5py
+  + pip install --no-deps --no-binary=h5py h5py
   + pip install torch
-  + pip install numpy
-  + pip install torch-scatter
-  + pip install torch-sparse
-  + pip install torch-geometric
+  + pip install torch-scatter torch-sparse torch-geometric
+  + pip list  `   <--- to show the installed packages`
   + See more information in [Python User Guide](https://docs.nersc.gov/development/languages/python/nersc-python) and [Parallelism in Python](https://docs.nersc.gov/development/languages/python/parallel-python) at NERSC.
 
 * On a local Linux machine
@@ -117,38 +118,45 @@
           -o /scratch/output/x0123
   ```
 
-* Example output from a 128-process run on Cori:
+* Example output from a 128-process run on two Cori KNL nodes:
   ```
   Processing input file: /global/cscratch1/sd/wkliao/uboone/numu_slice_89_seq_cnt_seq.h5
   Output file: /global/cscratch1/sd/wkliao/uboone_out/numu_slice.0000.h5
-  Size of event_table/event_id is  574174
-  ------------------------------------------------------------------
-  Use event_id.seq_cnt as graph IDs
-  read seq    time MAX=    0.39  MIN=    0.00
-  bin search  time MAX=    2.34  MIN=    0.00
-  scatter     time MAX=    0.00  MIN=    0.00
-  scatterV    time MAX=    0.11  MIN=    0.00
-  read remain time MAX=    2.99  MIN=    2.48
-  ------------------------------------------------------------------
-  Number of MPI processes =  128
-  Total number of graphs =  537165
-  Local number of graphs MAX= 4503     MIN= 3879
-  Local graph size       MAX=  147.13  MIN=  124.57 (MiB)
-  ------------------------------------------------------------------
-  read from file  time MAX=    6.03  MIN=    5.82
-  build dataframe time MAX=   56.54  MIN=   35.19
-  graph creation  time MAX=  666.21  MIN=  458.51
-  write to files  time MAX=   65.39  MIN=   49.37
-  total           time MAX=  794.20  MIN=  572.70
+  ---- Timing break down of the file read phase (in seconds) -------
+  Use event_id.seq_cnt to calculate subarray boundaries
+  calc boundaries time MAX=    2.72  MIN=    2.23
+  read datasets   time MAX=    2.91  MIN=    2.32
+  (MAX and MIN timings are among 128 processes)
+  ---- Timing break down of graph creation phase (in seconds) ------
+  edep grouping   time MAX=   26.29  MIN=   20.22
+  edep merge      time MAX=   59.04  MIN=   45.87
+  labelling       time MAX=  312.70  MIN=  212.02
+  hit_table merge time MAX=   32.94  MIN=   25.03
+  plane build     time MAX=   63.98  MIN=   49.40
+  torch_geometric time MAX=   28.84  MIN=   22.51
+  edge knn        time MAX=   53.81  MIN=   41.42
   (MAX and MIN timings are among 128 processes)
   ------------------------------------------------------------------
-  edep grouping   time MAX=   26.06  MIN=   19.69
-  edep merge      time MAX=   59.00  MIN=   44.30
-  label           time MAX=  334.41  MIN=  205.81
-  hit_table merge time MAX=   33.98  MIN=   23.98
-  plane build     time MAX=   66.00  MIN=   48.38
-  torch           time MAX=   29.12  MIN=   21.39
-  knn             time MAX=   62.69  MIN=   45.48
+  Number of MPI processes          =     128
+  Total no. event IDs              =  574174
+  Total no. non-empty events       =  245891
+  Size of all events               =   16952.1 MiB
+  Local no. events assigned     MAX=    2012   MIN=    1832   AVG=    1921.0
+  Local indiv event size in KiB MAX=    1077.9 MIN=       3.0 AVG=      70.6
+  Local sum   event size in MiB MAX=     147.1 MIN=     124.6 AVG=     132.4
+  Total no.  of graphs             =  537165
+  Size of all graphs               =   27008.8 MiB
+  Local no. graphs created      MAX=    4503   MIN=    3879   AVG=    4196.6
+  Local indiv graph size in KiB MAX=     629.8 MIN=       6.3 AVG=      51.5
+  Local sum   graph size in MiB MAX=     231.4 MIN=     193.1 AVG=     211.0
+  (MAX and MIN timings are among 128 processes)
+  ---- Top-level timing breakdown (in seconds) ---------------------
+  read from file  time MAX=    5.61  MIN=    5.41
+  build dataframe time MAX=   56.63  MIN=   35.95
+  graph creation  time MAX=  634.71  MIN=  458.93
+  write to files  time MAX=   94.64  MIN=   73.58
+  total           time MAX=  787.78  MIN=  594.78
+  (MAX and MIN timings are among 128 processes)
   ```
 * Merge multiple output HDF5 files into one
   + When command-line option '-5' is used, the number of output HDF5 files is
@@ -180,12 +188,29 @@
 
 ### Performance timing breakdowns
 * Cori KNL nodes at NERSC, 64 MPI processes per node, time in seconds.
+* Input file: /global/cscratch1/sd/wkliao/uboone/numu_slice_89_seq_cnt_seq.h5
+* Input file's Lustre striping setting: striping count 32 and striping size 1 MiB
+* Input file size: 13.74 GiB
+* Output file folder's Lustre striping setting: striping count 1 and striping size 1 MiB
+* Output file size: 12.45 GiB (HDF5 files with compression enabled)
 
    | No. MPI processes | 64      | 128    | 256    | 512    | 1024   |
    | ----------------- |--------:|-------:|-------:|-------:|-------:|
-   | read from file    |    8.62 |   6.01 |   4.85 |   4.59 |  14.66 |
-   | build dataframes  |  100.45 |  51.02 |  28.02 |  15.13 |   7.47 |
-   | graph creation    | 1146.41 | 589.48 | 352.56 | 170.40 |  87.62 |
-   | write to files    |  105.47 |  53.72 |  39.15 |  14.47 |   7.31 |
-   | total             | 1359.55 | 699.85 | 422.17 | 204.60 | 116.78 |
+   | read from file    |    8.09 |   5.61 |   5.07 |   4.59 |  14.66 |
+   | build dataframes  |  112.07 |  56.63 |  28.92 |  15.13 |   7.47 |
+   | graph creation    | 1220.07 | 634.71 | 333.52 | 170.40 |  87.62 |
+   | write to files    |  179.51 |  94.64 |  54.39 |  14.47 |   7.31 |
+   | total             | 1519.54 | 787.78 | 412.49 | 204.60 | 116.78 |
+
+* Input data statistics:
+  + Number of event IDs: 574174
+  + Number of non-empty events: 245891
+  + Total size of all event data: 16.55 GiB
+  + Max event data size: 1077.9 KiB
+  + Min event data size:    3.0 KiB
+* Output data statistics:
+  + Number of graphs: 537165
+  + Total size of all graphs: 26.38 GiB
+  + Max graph size: 629.8 KiB
+  + Min graph size:   6.3 KiB
 
