@@ -30,18 +30,28 @@ def panoptic_label(part):
   def walk(part, particles, depth, sl, il):
 
     def s(part, particles):
-      import particle
+      import particle  # does this need to be in the closure?
       sl, slc = -1, None
       parent_type = 0 if part.parent_id == 0 else particles.type[part.parent_id]
+
+      # absolute assignments
       if abs(part.type) == 211: sl = label.pion.value
       if abs(part.type) == 13:  sl = label.muon.value
       if abs(part.type) == 321: sl = label.kaon.value
-      if (particle.pdgid.is_baryon(part.type) and particle.pdgid.charge != 0) \
+      #! TODO do we mean to be excluding these as invisible?
+      # neutral pions, neutral Kaons (vanilla, short, and long respectively).
+      if part.type == 111 or abs(part.type) == 311 or abs(part.type) == 310 or abs(part.type) == 130: sl = label.invisible.value
+
+      # baryon interactions - hadron or diffuse
+      if (particle.pdgid.is_baryon(part.type) and particle.pdgid.charge(part.type) != 0) \
         or particle.pdgid.is_nucleus(part.type): sl = label.hadron.value
       if particle.pdgid.is_baryon(part.type) and particle.pdgid.charge(part.type) == 0:
         sl = label.diffuse.value
         slc = label.diffuse.value # propagate to children
+
+      # gamma ray (photon) interactiosn
       if part.type == 22:
+          # shouldn't this include compton scatters too?
         if part.end_process == b'conv':
           sl = label.shower.value
           slc = label.shower.value # propagate to children
@@ -49,19 +59,26 @@ def panoptic_label(part):
           or part.end_process == b'photonNuclear':
           sl = label.diffuse.value
           slc = label.diffuse.value #propagate to children
+
+      # electron and positron interactions
       if abs(part.type) == 11:
+        #! TODO do we need this contraint on the parent type being a muon?
         if abs(parent_type) == 13 and (part.start_process == b'muMinusCaptureAtRest' \
           or part.start_process == b'muPlusCaptureAtRest' or part.start_process == b'Decay'):
           sl = label.michel.value
+          #! TODO shouldn't this propagate to children
         if part.start_process == b'muIoni' or part.start_process == b'hIoni' \
           or part.start_process == b'eIoni':
           sl = label.delta.value
+          #! TODO shouldn't delta rays propagate to children too
+        #! TODO this is overwriting the previous two conditions based on end process -> probably not expected
         if part.end_process == b'StepLimiter' or part.end_process == b'annihil' \
           or part.end_process == b'eBrem' or part.start_process == b'hBertiniCaptureAtRest' \
           or part.end_process == b'FastScintillation':
           sl = label.diffuse.value # is this right?
           slc = label.diffuse.value # propagate to children
-      if part.type == 111 or abs(part.type) == 311 or abs(part.type) == 310 or abs(part.type) == 130: sl = label.invisible.value
+
+      # check to make sure particle was assigned
       if sl == -1:
         raise Exception(f"particle not recognised! PDG code {part.type}, parent type {parent_type}, start process {part.start_process}, end process {part.end_process}")
 
@@ -84,7 +101,7 @@ def panoptic_label(part):
     for _, row in particles[(part.g4_id==particles.parent_id)].iterrows():
       ret += walk(row, particles, depth+1, slc, ilc)
     return ret
-    
+
   ret = []
   part = part.set_index("g4_id", drop=False)
   primaries = part[(part.parent_id==0)]
