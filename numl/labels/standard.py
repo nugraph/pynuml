@@ -38,7 +38,7 @@ def panoptic_label(part):
 				slc = None
 				return sl, slc
 			
-   			def muon_labeler(part, parent_type):
+			def muon_labeler(part, parent_type):
 				sl = label.muon.value
 				slc = None
 				return sl, slc
@@ -148,7 +148,7 @@ def panoptic_label(part):
 		if row.instance_label == -1: return -1
 		return instances[row.instance_label]
 	
- 	labels["instance_label"] = labels.apply(alias_instance, args=[instances], axis="columns")
+	labels["instance_label"] = labels.apply(alias_instance, args=[instances], axis="columns")
 	return labels
 
 def semantic_label(part):
