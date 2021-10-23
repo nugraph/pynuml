@@ -79,11 +79,16 @@ def panoptic_label(part):
 				if part.end_process == b'conv':
 					sl = label.shower.value
 					slc = label.shower.value # propagate to children
+				elif part.start_process == b'compt':
+					sl = label.diffuse.value
+					slc = label.diffuse.value
 				elif part.start_process == b'eBrem' or part.end_process == b'phot' \
 				  or part.end_process == b'photonNuclear':
 					sl = label.diffuse.value
 					slc = label.diffuse.value #propagate to children
-				raise Exception('gamma interaction failed to be labeled as expected')
+				else:
+					raise Exception('gamma interaction failed to be labeled as expected')
+				return sl, slc
 		
 			def unlabeled_particle(part, parent_type):
 				raise Exception(f"particle not recognised! PDG code {part.type}, parent type {parent_type}, start process {part.start_process}, end process {part.end_process}")
@@ -100,7 +105,7 @@ def panoptic_label(part):
 				22: gamma_labeler
 			}
 
-			func = particle_processor.get(abs(part.type), default=unlabeled_particle)
+			func = particle_processor.get(abs(part.type), lambda x ,y: (-1, None))
 			sl, slc = func(part, parent_type)
 
 			# baryon interactions - hadron or diffuse
