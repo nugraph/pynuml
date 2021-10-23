@@ -38,7 +38,7 @@ def panoptic_label(part):
 				slc = None
 				return sl, slc
 			
-			def muon_labeler(part, parent_type):
+   			def muon_labeler(part, parent_type):
 				sl = label.muon.value
 				slc = None
 				return sl, slc
