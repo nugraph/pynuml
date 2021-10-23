@@ -18,22 +18,22 @@ def timing(f):
 	@wraps(f)
 	def wrap(*args, **kw):
 		ts = time()
-    	result = f(*args, **kw)
-    	te = time()
-    	print('func:%r took: %2.4f sec' % \
-      	(f.__name__, te-ts))
-    	return result
+		result = f(*args, **kw)
+		te = time()
+		print('func:%r took: %2.4f sec' % \
+	  	(f.__name__, te-ts))
+		return result
 	return wrap
 
 @timing
 def panoptic_label(part):
-    def walk(part, particles, depth, sl, il):
-        def s(part, particles):
-            import particle  # does this need to be in the closure?
-            sl, slc = -1, None
-            parent_type = 0 if part.parent_id == 0 else particles.type[part.parent_id]
+	def walk(part, particles, depth, sl, il):
+		def s(part, particles):
+			import particle  # does this need to be in the closure?
+			sl, slc = -1, None
+			parent_type = 0 if part.parent_id == 0 else particles.type[part.parent_id]
 
-            def pion_labeler(part, parent_type):
+			def pion_labeler(part, parent_type):
 				sl = label.pion.value
 				slc = None
 				return sl, slc
@@ -89,16 +89,16 @@ def panoptic_label(part):
 				raise Exception(f"particle not recognised! PDG code {part.type}, parent type {parent_type}, start process {part.start_process}, end process {part.end_process}")
 			
 			particle_processor = {
-				211: pion_labeler
-				13: muon_labeler
-				321: kaon_labeler
-				111: neutral_pions_kaons_labeler
-				311: neutral_pions_kaons_labeler
-				310: neutral_pions_kaons_labeler
-				130: neutral_pions_kaons_labeler
-				11: electron_positron_labeler
+				211: pion_labeler,
+				13: muon_labeler,
+				321: kaon_labeler,
+				111: neutral_pions_kaons_labeler,
+				311: neutral_pions_kaons_labeler,
+				310: neutral_pions_kaons_labeler,
+				130: neutral_pions_kaons_labeler,
+				11: electron_positron_labeler,
 				22: gamma_labeler
-            }
+			}
 
 			func = particle_processor.get(abs(part.type), default=unlabeled_particle)
 			sl, slc = func(part, parent_type)
@@ -114,16 +114,15 @@ def panoptic_label(part):
 			# check to make sure particle was assigned
 			if sl == -1:
 				unlabeled_particle(part, parent_type)
-				
 
 			return sl, slc
 
-    def i(part, particles, sl):
-		il, ilc = -1, -1
-      	if sl != label.diffuse.value and sl != label.delta.value:
-        	il = part.g4_id
-        	if sl == label.shower.value: ilc = il
-      	return il, ilc
+		def i(part, particles, sl):
+			il, ilc = -1, -1
+			if sl != label.diffuse.value and sl != label.delta.value:
+				il = part.g4_id
+				if sl == label.shower.value: ilc = il
+			return il, ilc
 
 		if sl is not None: slc = sl
 		else: sl, slc = s(part, particles)
@@ -136,20 +135,21 @@ def panoptic_label(part):
 			ret += walk(row, particles, depth+1, slc, ilc)
 		return ret
 
-  	ret = []
-  	part = part.set_index("g4_id", drop=False)
-  	primaries = part[(part.parent_id==0)]
-  	for _, primary in primaries.iterrows():
-    	ret += walk(primary, part, 0, None, None)
-  	import pandas as pd
-  	labels = pd.DataFrame.from_dict(ret)
-  	instances = { val: i for i, val in enumerate(labels[(labels.instance_label>=0)].instance_label.unique()) }
-	
+	ret = []
+	part = part.set_index("g4_id", drop=False)
+	primaries = part[(part.parent_id==0)]
+	for _, primary in primaries.iterrows():
+		ret += walk(primary, part, 0, None, None)
+	import pandas as pd
+	labels = pd.DataFrame.from_dict(ret)
+	instances = { val: i for i, val in enumerate(labels[(labels.instance_label>=0)].instance_label.unique()) }
+		
 	def alias_instance(row, instances):
-    	if row.instance_label == -1: return -1
-    		return instances[row.instance_label]
-  		labels["instance_label"] = labels.apply(alias_instance, args=[instances], axis="columns")
-  		return labels
+		if row.instance_label == -1: return -1
+		return instances[row.instance_label]
+	
+ 	labels["instance_label"] = labels.apply(alias_instance, args=[instances], axis="columns")
+	return labels
 
 def semantic_label(part):
 	return panoptic_label(part).drop("instance_label", axis="columns")
