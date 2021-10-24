@@ -25,44 +25,44 @@ def single_plane_graph_vis(key, hit, part, edep, sp, l=standard):
     # get labels for each particle
     evt_part = part.loc[key].reset_index(drop=True)
     evt_part = l.semantic_label(evt_part)
-        
+
     parent_dict = {0 : ["No Info", "No Info"]}
     for g,t in zip(evt_part['g4_id'], evt_part['type']):
         if g not in parent_dict:
-            parent_dict[g] = [t, "No Info"] 
-            
+            parent_dict[g] = [t, "No Info"]
+
     for g,e in zip(evt_hit['g4_id'], evt_hit['energy_fraction']):
         parent_dict[g][1] = e
 
     # join the dataframes to transform particle labels into hit labels
     evt_hit = evt_hit.merge(evt_part, on="g4_id", how="inner")
-    
-    
+
+
     planes_suffixes = [ "_u", "_v", "_y" ]
 
     evt_sp = sp.loc[key].reset_index(drop=True)
 
-    data = { "n_sp": evt_sp.shape[1] }         
+    data = { "n_sp": evt_sp.shape[1] }
 
     planes = []
     # draw graph edges
     for p, plane in evt_hit.groupby("local_plane"):
 
         # Reset indices
-        plane = plane.reset_index(drop=True).reset_index()  
-                
+        plane = plane.reset_index(drop=True).reset_index()
+
         plane['parent_type'] = plane.apply(lambda row: parent_dict[row['parent_id']][0], axis=1)
         plane['parent_energy_fraction'] = plane.apply(lambda row: parent_dict[row['parent_id']][1], axis=1)
-                
+
         suffix = planes_suffixes[p]
         # Save to file
         node_feats = ["global_plane", "global_wire", "global_time", "tpc",
           "local_plane", "local_wire", "local_time", "integral", "rms"]
         data["x"+suffix] = torch.tensor(plane[node_feats].to_numpy()).float()
         data["y"+suffix] = torch.tensor(plane["semantic_label"].to_numpy()).long()
-                
+
         planes.append(plane)
-        
+
     return planes
 
 
@@ -95,7 +95,7 @@ def plot_event(df, print_out=True, write=False):
       "delta" : "pink",
       "diffuse" : "orange",
       "invisible" : "white"}
-    fig = px.scatter(df, x="local_wire", y="local_time", color="semantic_label", color_discrete_map=color_dict, facet_col="local_plane", 
+    fig = px.scatter(df, x="local_wire", y="local_time", color="semantic_label", color_discrete_map=color_dict, facet_col="local_plane",
                      hover_data=["g4_id","type", "energy_fraction", "start_process", "end_process", "parent_id", "parent_type", "parent_energy_fraction"])
 
     fig.update_layout(
@@ -106,6 +106,6 @@ def plot_event(df, print_out=True, write=False):
     )
     if print_out:
         fig.show()
-        
+
     if write:
         fig.write_html("events/nue_sample/%i_%i_%i.html" %(planes[0].iloc[0]['run'],planes[0].iloc[0]['subrun'],planes[0].iloc[0]['event']))
