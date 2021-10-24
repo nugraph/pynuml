@@ -7,7 +7,7 @@ from labels import standard
 from graph import *
 import plotly.express as px
 
-def single_plane_graph_vis(key, hit, part, edep, sp, l=standard, e=edges.window_edges):
+def single_plane_graph_vis(key, hit, part, edep, sp, l=standard):
     """Process an event into graphs"""
     # skip any events with no simulated hits
     if (hit.index==key).sum() == 0: return
