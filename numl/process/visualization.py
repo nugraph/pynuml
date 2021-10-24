@@ -37,13 +37,6 @@ def single_plane_graph_vis(key, hit, part, edep, sp, l=standard):
     # join the dataframes to transform particle labels into hit labels
     evt_hit = evt_hit.merge(evt_part, on="g4_id", how="inner")
 
-
-    planes_suffixes = [ "_u", "_v", "_y" ]
-
-    evt_sp = sp.loc[key].reset_index(drop=True)
-
-    data = { "n_sp": evt_sp.shape[1] }
-
     planes = []
     # draw graph edges
     for p, plane in evt_hit.groupby("local_plane"):
@@ -53,13 +46,6 @@ def single_plane_graph_vis(key, hit, part, edep, sp, l=standard):
 
         plane['parent_type'] = plane.apply(lambda row: parent_dict[row['parent_id']][0], axis=1)
         plane['parent_energy_fraction'] = plane.apply(lambda row: parent_dict[row['parent_id']][1], axis=1)
-
-        suffix = planes_suffixes[p]
-        # Save to file
-        node_feats = ["global_plane", "global_wire", "global_time", "tpc",
-          "local_plane", "local_wire", "local_time", "integral", "rms"]
-        data["x"+suffix] = torch.tensor(plane[node_feats].to_numpy()).float()
-        data["y"+suffix] = torch.tensor(plane["semantic_label"].to_numpy()).long()
 
         planes.append(plane)
 
