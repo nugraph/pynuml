@@ -114,7 +114,6 @@ def panoptic_label(part):
                 sl = label.hadron.value
             if particle.pdgid.is_baryon(part.type) and particle.pdgid.charge(part.type) == 0:
                 sl = label.diffuse.value
-                slc = label.diffuse.value # propagate to children
 
             # check to make sure particle was assigned
             if sl == -1:
