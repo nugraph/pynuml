@@ -54,7 +54,7 @@ def panoptic_label(part):
                 return sl, slc
 
             def electron_positron_labeler(part, parent_type):
-                if part.start_process == "primary":
+                if part.start_process == b'primary':
                     sl = label.shower.value
                     slc = label.shower.value
                 elif abs(parent_type) == 13 and (part.start_process == b'muMinusCaptureAtRest' \
