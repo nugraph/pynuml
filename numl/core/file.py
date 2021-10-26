@@ -366,8 +366,7 @@ class NuMLFile:
             # create an empty Pandas DataFrame
             dfs = []
             for dataset in self._data[group].keys():
-              data = np.array([])
-              data_dataframe = pd.DataFrame(data, columns=self._cols(group, dataset))
+              data_dataframe = pd.DataFrame(columns=self._cols(group, dataset))
               dfs.append(data_dataframe)
             ret[group] = pd.concat(dfs, axis="columns")
             # print("xxx",group," missing idx=",idx," _seq_cnt[0]=",self._seq_cnt[group][idx_grp[group], 0])
