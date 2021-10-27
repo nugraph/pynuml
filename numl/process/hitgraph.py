@@ -7,6 +7,8 @@ from mpi4py import MPI
 import numpy as np
 import sys
 
+edep1_t = 0.0
+edep2_t = 0.0
 hit_merge_t = 0.0
 torch_t = 0.0
 plane_t = 0.0
