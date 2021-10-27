@@ -31,7 +31,10 @@ class H5Out:
   def save(self, obj, name):
     for key, val in obj:
       # set chunk sizes to val shape, so there is only one chunk per dataset
-      self.f.create_dataset(f"/{name}/{key}", data=val, chunks=val.shape, compression="gzip")
+      if (isinstance(val, torch.Tensor)) :
+        self.f.create_dataset(f"/{name}/{key}", data=val, chunks=val.shape, compression="gzip")
+      else:
+        self.f.create_dataset(f"/{name}/{key}", data=val)
       # below is to disable data compression (and chunking)
       # self.f.create_dataset(f"/{name}/{key}", data=val)
 

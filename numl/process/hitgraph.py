@@ -7,6 +7,8 @@ from mpi4py import MPI
 import numpy as np
 import sys
 
+edep1_t = 0.0
+edep2_t = 0.0
 hit_merge_t = 0.0
 torch_t = 0.0
 plane_t = 0.0
@@ -312,8 +314,12 @@ def process_file(out, fname, g=process_event, l=standard.semantic_label,
         if profiling:
           grp_size = 0
           for key, val in data:
-            # calculate size in bytes of val, a pytorch tensor
-            grp_size += val.element_size() * val.nelement()
+            # calculate size in bytes of val
+            if (isinstance(val, torch.Tensor)):
+              # val is a pytorch tensor
+              grp_size += val.element_size() * val.nelement()
+            else:
+              grp_size += sys.getsizeof(val)
           num_grps += 1
           grp_size_sum += grp_size
           if grp_size > grp_size_max : grp_size_max = grp_size
