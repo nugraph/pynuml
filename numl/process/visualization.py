@@ -117,7 +117,7 @@ def label_counts(data):
     ax = counts.plot(kind='bar')
     ax.set_ylabel("count")
 
-def histogram_slice(data, metric, fname, log_scale=False, write=False):
+def histogram_slice(data, metric, log_scale=False, write=False):
     color_dict = {"pion" : "yellow",
       "muon" : "green",
       "kaon" : "black",
@@ -138,4 +138,4 @@ def histogram_slice(data, metric, fname, log_scale=False, write=False):
     )
     fig.show()
     
-    if write: fig.write_html("hist_numu")
+    if write: fig.write_html("hist_nue.html")
