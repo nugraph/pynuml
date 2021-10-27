@@ -14,7 +14,7 @@ label_t = 0.0
 knn_t = 0.0
 profiling = False
 
-def process_event_singleplane(event_id, evt, l=ccqe.semantic_label, e=edges.delaunay, **edge_args):
+def process_event_singleplane(event_id, evt, l, e, **edge_args):
   """Process an event into graphs"""
 
   global edep1_t, edep2_t, hit_merge_t, torch_t, plane_t, label_t, knn_t
@@ -24,7 +24,6 @@ def process_event_singleplane(event_id, evt, l=ccqe.semantic_label, e=edges.dela
 
   # get energy depositions, find max contributing particle, and ignore any evt_hits with no truth
   evt_edep = evt["edep_table"]
-
   evt_edep = evt_edep.sort_values(by=['energy_fraction'], ascending=False, kind='mergesort').drop_duplicates('hit_id')
 
   if profiling:
@@ -77,9 +76,10 @@ def process_event_singleplane(event_id, evt, l=ccqe.semantic_label, e=edges.dela
 
     data = tg.data.Data(
       x=torch.tensor(plane[node_feats].values).float(),
-      y_s=torch.tensor(plane["label"].values).long(),
       pos=pos,
     )
+    if "semantic_label" in plane.keys():
+      data.y_s = torch.tensor(plane["semantic_label"].values).long()
     if "instance_label" in plane.keys():
       data.y_i = torch.tensor(plane["instance_label"].values).long()
 
@@ -98,36 +98,53 @@ def process_event_singleplane(event_id, evt, l=ccqe.semantic_label, e=edges.dela
 
   return ret
 
-def process_event(out, key, hit, part, edep, sp, l=ccqe.semantic_label, e=edges.delaunay, **edge_args):
+def process_event(event_id, evt, l, e, **edge_args):
   """Process an event into graphs"""
   # skip any events with no simulated hits
-  if out.exists(f"r{key[0]}_sr{key[1]}_evt{key[2]}"):
-    print(f"file r{key[0]}_sr{key[1]}_evt{key[2]} exists! skipping")
-    return
-  print(f"processing event {key[0]}, {key[1]}, {key[2]}")
 
-  if key not in hit.index or key not in edep.index: return
+  global edep1_t, edep2_t, hit_merge_t, torch_t, plane_t, label_t, knn_t
+  global profiling
+  if profiling:
+    start_t = MPI.Wtime()
 
   # get energy depositions, find max contributing particle, and ignore any hits with no truth
-  evt_edep = edep.loc[key].reset_index(drop=True)
-  evt_edep = evt_edep.loc[evt_edep.groupby("hit_id")["energy_fraction"].idxmax()]
-  evt_hit = evt_edep.merge(hit.loc[key].reset_index(), on="hit_id", how="inner").drop("energy_fraction", axis=1)
+  evt_edep = evt["edep_table"]
+  evt_edep = evt_edep.sort_values(by=['energy_fraction'], ascending=False, kind='mergesort').drop_duplicates('hit_id')
+
+  if profiling:
+    end_t = MPI.Wtime()
+    edep1_t += end_t - start_t
+    start_t = end_t
+
+  evt_hit = evt_edep.merge(evt["hit_table"], on="hit_id", how="inner").drop("energy_fraction", axis=1)
+
+  if profiling:
+    end_t = MPI.Wtime()
+    edep2_t += end_t - start_t
+    start_t = end_t
 
   # skip events with fewer than 50 simulated hits in any plane
   for i in range(3):
     if (evt_hit.global_plane==i).sum() < 20: return
 
   # get labels for each particle
-  evt_part = part.loc[key].reset_index(drop=True)
-  evt_part = l(evt_part)
+  evt_part = l(evt["particle_table"])
+
+  if profiling:
+    end_t = MPI.Wtime()
+    label_t += end_t - start_t
+    start_t = end_t
 
   # join the dataframes to transform particle labels into hit labels
   evt_hit = evt_hit.merge(evt_part, on="g4_id", how="inner")
 
+  if profiling:
+    end_t = MPI.Wtime()
+    hit_merge_t += end_t - start_t
+    start_t = end_t
+
   planes = [ "_u", "_v", "_y" ]
-
-  evt_sp = sp.loc[key].reset_index(drop=True)
-
+  evt_sp = evt["spacepoint_table"]
   data = { "n_sp": evt_sp.shape[1] }
 
   # draw graph edges
@@ -144,20 +161,42 @@ def process_event(out, key, hit, part, edep, sp, l=ccqe.semantic_label, e=edges.
     edges_3d = pd.merge(plane_sp[k3d], plane[(plane.hit_id != -1)][k3d], on="hit_id", how="inner", suffixes=["_3d", "_2d"])
     blah = edges_3d[["index_2d", "index_3d"]].to_numpy()
 
+    if profiling:
+      end_t = MPI.Wtime()
+      plane_t += end_t - start_t
+      start_t = end_t
+
     # Save to file
     tmp = tg.data.Data(
       pos=plane[["global_wire", "global_time"]].values / torch.tensor([0.5, 0.075])[None, :].float()
     )
-    tmp = e(tmp, **edge_args)
     node_feats = ["global_plane", "global_wire", "global_time", "tpc",
       "local_plane", "local_wire", "local_time", "integral", "rms"]
     data["x"+suffix] = torch.tensor(plane[node_feats].to_numpy()).float()
-    data["y"+suffix] = torch.tensor(plane["semantic_label"].to_numpy()).long()
+    if "semantic_label" in plane.keys():
+      data["y_s"+suffix] = torch.tensor(plane["semantic_label"].to_numpy()).long()
+    if "instance_label" in plane.keys():
+      data["y_i"+suffix] = torch.tensor(plane["instance_label"].to_numpy()).long()
+
+    if profiling:
+      end_t = MPI.Wtime()
+      torch_t += end_t - start_t
+      start_t = end_t
+
+    tmp = e(tmp, **edge_args)
     data["edge_index"+suffix] = tmp.edge_index
     data["edge_index_3d"+suffix] = torch.tensor(blah).transpose(0, 1).long()
-  out.save(tg.data.Data(**data), f"r{key[0]}_sr{key[1]}_evt{key[2]}")
 
-def process_file(out, fname, g=process_event_singleplane, l=ccqe.semantic_label, e=edges.delaunay, p=None, use_seq=False, profile=False):
+    if profiling:
+      end_t = MPI.Wtime()
+      knn_t += end_t - start_t
+      start_t = end_t
+
+  return [[f"r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}", tg.data.Data(**data)]]
+
+def process_file(out, fname, g=process_event, l=standard.semantic_label,
+  e=edges.delaunay, p=None, use_seq=False, profile=False):
+
   comm = MPI.COMM_WORLD
   nprocs = comm.Get_size()
   rank = comm.Get_rank()
@@ -368,4 +407,3 @@ def process_file(out, fname, g=process_event_singleplane, l=ccqe.semantic_label,
       print("write to files  time MAX=%8.2f  MIN=%8.2f" % (max_total_t[3], min_total_t[3]))
       print("total           time MAX=%8.2f  MIN=%8.2f" % (max_total_t[4], min_total_t[4]))
       print("(MAX and MIN timings are among %d processes)" % nprocs)
-
