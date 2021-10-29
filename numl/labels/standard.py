@@ -4,26 +4,26 @@ from time import time
 from typing import NoReturn
 
 class label(enum.Enum):
-    pion = 0
-    muon = 1
-    kaon = 2
-    hadron = 3
-    shower = 4
-    michel = 5
-    delta = 6
-    diffuse = 7
-    invisible = 8
+  pion = 0
+  muon = 1
+  kaon = 2
+  hadron = 3
+  shower = 4
+  michel = 5
+  delta = 6
+  diffuse = 7
+  invisible = 8
 
 def timing(f):
-    @wraps(f)
-    def wrap(*args, **kw):
-        ts = time()
-        result = f(*args, **kw)
-        te = time()
-        print('func:%r took: %2.4f sec' % \
-        (f.__name__, te-ts))
-        return result
-    return wrap
+  @wraps(f)
+  def wrap(*args, **kw):
+    ts = time()
+    result = f(*args, **kw)
+    te = time()
+    print('func:%r took: %2.4f sec' % \
+    (f.__name__, te-ts))
+    return result
+  return wrap
 
 @timing
 def panoptic_label(part):
@@ -104,6 +104,7 @@ def panoptic_label(part):
         11: electron_positron_labeler,
         22: gamma_labeler
       }
+
       if part.end_process == b'CoupledTransportation':
         # particle left the volume boundary
         sl = label.invisible.value
@@ -159,7 +160,7 @@ def panoptic_label(part):
   return labels
 
 def semantic_label(part):
-    return panoptic_label(part).drop("instance_label", axis="columns")
+  return panoptic_label(part).drop("instance_label", axis="columns")
 
 def instance_label(part):
-    return panoptic_label(part).drop("semantic_label", axis="columns")
+  return panoptic_label(part).drop("semantic_label", axis="columns")
