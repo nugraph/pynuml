@@ -17,6 +17,7 @@
   + pip install --no-deps --no-binary=h5py h5py
   + pip install torch
   + pip install torch-scatter torch-sparse torch-geometric
+  + pip install particle
   + pip list  `   <--- to show the installed packages`
   + See more information in [Python User Guide](https://docs.nersc.gov/development/languages/python/nersc-python) and [Parallelism in Python](https://docs.nersc.gov/development/languages/python/parallel-python) at NERSC.
 
