@@ -87,7 +87,10 @@ class NuMLFile:
 
   def get_dataframe(self, group, keys=[]):
     with h5py.File(self._filename, "r") as f:
-      if not keys: keys = list(f.keys())
+      if not keys:
+        keys = list(f[group].keys())
+        if "event_id.seq" in keys: keys.remove("event_id.seq")
+        if "event_id.seq_cnt" in keys: keys.remove("event_id.seq_cnt")
       dfs = [ pd.DataFrame(np.array(f[group][key]), columns=self._cols(group, key)) for key in keys ]
       return pd.concat(dfs, axis="columns").set_index(["run","subrun","event"])
 
