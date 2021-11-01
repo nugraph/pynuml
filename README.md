@@ -5,8 +5,11 @@
   + module load python
   + conda init `   <--- run this only when first time use of conda`
   + conda env remove --name h5pyenv `   <--- delete conda environment h5pyenv if exists`
-  + conda create --name h5pyenv
-  + conda activate h5pyenv
+  + conda create --name h5pyenv python=3.8 `    <--- install under user's home folder`
+    * conda activate h5pyenv
+  + conda create --prefix /global/common/software/myproject/h5pyenv python=3.8 `    <--- install under Cori global common folder`
+    * conda activate /global/common/software/myproject/h5pyenv
+    * replace 'myproject' in the above 2 commands with your project ID
   + module swap PrgEnv-intel PrgEnv-gnu
   + conda install -c defaults --override-channels numpy
   + setenv MPICC "cc -shared" `   <--- for bash, export MPICC="cc -shared"`
