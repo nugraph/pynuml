@@ -3,25 +3,27 @@
 ### Set up python environment
 * On Cori at NERSC
   + module load python
-  + conda init `   <--- run this only when first time use of conda`
-  + conda env remove --name h5pyenv `   <--- delete conda environment h5pyenv if exists`
-  + conda create --name h5pyenv python=3.8 `    <--- install under user's home folder`
+  + conda init `<--- run this only when first time use of conda`
+  + To install under user's home folder:
+    * conda env remove --name h5pyenv
+    * conda create --name h5pyenv python=3.8
     * conda activate h5pyenv
-  + conda create --prefix /global/common/software/myproject/h5pyenv python=3.8 `    <--- install under Cori global common folder`
+  + To install under Cori global common project folder:
+    * conda remove --name --name /global/common/software/myproject/h5pyenv
+    * conda create --prefix /global/common/software/myproject/h5pyenv python=3.8
     * conda activate /global/common/software/myproject/h5pyenv
-    * replace 'myproject' in the above 2 commands with your project ID
+    * (replace 'myproject' in the above 3 commands with your project ID)
   + module swap PrgEnv-intel PrgEnv-gnu
-  + conda install -c defaults --override-channels numpy
-  + setenv MPICC "cc -shared" `   <--- for bash, export MPICC="cc -shared"`
-  + pip install --no-binary=mpi4py mpi4py
-  + setenv CC cc  `   <--- for bash, export CC=cc`
-  + setenv HDF5_MPI ON  `   <--- for bash, export HDF5_MPI=ON`
+  + setenv MPICC "cc -shared" `<--- for bash, export MPICC="cc -shared"`
+  + pip install --force --no-cache-dir --no-binary=mpi4py mpi4py
+  + setenv CC cc  `<--- for bash, export CC=cc`
+  + setenv HDF5_MPI ON  `<--- for bash, export HDF5_MPI=ON`
   + module load cray-hdf5-parallel
-  + pip install --no-deps --no-binary=h5py h5py
-  + pip install torch
-  + pip install torch-scatter torch-sparse torch-geometric
-  + pip install particle
-  + pip list  `   <--- to show the installed packages`
+  + pip install --force --no-cache-dir --no-deps --no-binary=h5py h5py
+  + pip install --force --no-cache-dir torch
+  + pip install --force --no-cache-dir torch-scatter torch-sparse torch-geometric
+  + pip install --force --no-cache-dir particle
+  + pip list  `<--- to show the installed packages`
   + See more information in [Python User Guide](https://docs.nersc.gov/development/languages/python/nersc-python) and [Parallelism in Python](https://docs.nersc.gov/development/languages/python/parallel-python) at NERSC.
 
 * On a local Linux machine
@@ -41,10 +43,8 @@
   + pip install pandas
   + pip install boost_histogram
   + pip install torch
-  + pip install numpy
-  + pip install torch-scatter
-  + pip install torch-sparse
-  + pip install torch-geometric
+  + pip install torch-scatter torch-sparse torch-geometric
+  + pip install particle
 
 ### Run commands
 * On Cori at NERSC
