@@ -31,12 +31,16 @@ class H5Out:
   def save(self, obj, name):
     for key, val in obj:
       # set chunk sizes to val shape, so there is only one chunk per dataset
-      if (isinstance(val, torch.Tensor)) :
+      # if isinstance(val, torch.Tensor) and val.nelement() == 0 :
+      #   print("zero val ",name,"/",key," shape=",val.shape)
+      if isinstance(val, torch.Tensor) and val.nelement() > 0 :
+        # Note compressed datasets can only be read/written in MPI collective I/O mode in HDF5
         self.f.create_dataset(f"/{name}/{key}", data=val, chunks=val.shape, compression="gzip")
+        # The line below is to not enable chunking/compression
+        # self.f.create_dataset(f"/{name}/{key}", data=val)
       else:
+        # if data is not a tensor or is empty, then disable chunking/compression
         self.f.create_dataset(f"/{name}/{key}", data=val)
-      # below is to disable data compression (and chunking)
-      # self.f.create_dataset(f"/{name}/{key}", data=val)
 
   def __del__(self):
     self.f.close()
