@@ -63,8 +63,19 @@ def panoptic_label(part):
           slc = None
         elif part.start_process == b'muIoni' or part.start_process == b'hIoni' \
           or part.start_process == b'eIoni':
-          sl = label.delta.value
-          slc = None
+          if part.momentum <= 0.01:
+            if part.start_process == b'muIoni':
+              sl = label.muon.value
+              slc = None
+            elif part.start_process == b'hIoni':
+              sl = label.hadron.value
+              slc = None
+            else:
+              sl = label.shower.value
+              slc = None
+          else:
+            sl = label.delta.value
+            slc = label.delta.value
         elif part.end_process == b'StepLimiter' or part.end_process == b'annihil' \
           or part.end_process == b'eBrem' or part.start_process == b'hBertiniCaptureAtRest' \
           or part.end_process == b'FastScintillation':
@@ -77,17 +88,21 @@ def panoptic_label(part):
 
       def gamma_labeler(part, parent_type):
         if part.end_process == b'conv':
-          sl = label.shower.value
-          slc = label.shower.value # propagate to children
+          if part.momentum >=0.02:
+            sl = label.shower.value
+          else: 
+            sl = label.diffuse.value
         elif part.start_process == b'compt':
-          sl = label.diffuse.value
-          slc = label.diffuse.value
+          if part.momentum >= 0.02:
+            sl = label.shower.value
+          else:
+            sl = label.diffuse.value
         elif part.start_process == b'eBrem' or part.end_process == b'phot' \
           or part.end_process == b'photonNuclear':
           sl = label.diffuse.value
-          slc = label.diffuse.value #propagate to children
         else:
           raise Exception('gamma interaction failed to be labeled as expected')
+        slc = sl
         return sl, slc
 
       def unlabeled_particle(part, parent_type):
