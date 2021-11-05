@@ -68,7 +68,7 @@ def panoptic_label(part):
               sl = label.muon.value
               slc = None
             elif part.start_process == b'hIoni':
-              sl = label.hadron.value
+              sl = label.pion.value
               slc = None
             else:
               sl = label.shower.value
@@ -90,7 +90,7 @@ def panoptic_label(part):
         if part.end_process == b'conv':
           if part.momentum >=0.02:
             sl = label.shower.value
-          else: 
+          else:
             sl = label.diffuse.value
         elif part.start_process == b'compt':
           if part.momentum >= 0.02:
@@ -129,7 +129,7 @@ def panoptic_label(part):
 
       # baryon interactions - hadron or diffuse
       if (particle.pdgid.is_baryon(part.type) and particle.pdgid.charge(part.type) != 0) \
-        or particle.pdgid.is_nucleus(part.type): 
+        or particle.pdgid.is_nucleus(part.type):
         sl = label.hadron.value
       if particle.pdgid.is_baryon(part.type) and particle.pdgid.charge(part.type) == 0:
         sl = label.diffuse.value
