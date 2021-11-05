@@ -132,7 +132,10 @@ def panoptic_label(part):
         or particle.pdgid.is_nucleus(part.type):
         sl = label.hadron.value
       if particle.pdgid.is_baryon(part.type) and particle.pdgid.charge(part.type) == 0:
-        sl = label.diffuse.value
+        if abs(part.type) == 2212 and part.momentum >=0.2:
+          sl = label.hadron.value
+        else:
+          sl = label.diffuse.value
 
       # check to make sure particle was assigned
       if sl == -1:
