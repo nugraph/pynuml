@@ -89,7 +89,7 @@ def plot_event(df, print_out=True, write=None):
         fig.show()
 
     if write:
-        fig.write_html(f"{write}/{df[0].iloc[0]['run']}_{df[0].iloc[0]['subrun']}_{df[0].iloc[0]['event']}.html")
+        fig.write_html(write)
 
 def concat_events(fname):
     f = NuMLFile(fname)
