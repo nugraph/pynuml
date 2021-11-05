@@ -65,7 +65,7 @@ def handle_planes(planes_arr):
     return pd.concat(planes_arr)
 
 
-def plot_event(df, print_out=True, write=False):
+def plot_event(df, print_out=True, write=None):
     color_dict = {"pion" : "yellow",
       "muon" : "green",
       "kaon" : "black",
@@ -89,7 +89,7 @@ def plot_event(df, print_out=True, write=False):
         fig.show()
 
     if write:
-        fig.write_html("events/nue_sample/%i_%i_%i.html" %(planes[0].iloc[0]['run'],planes[0].iloc[0]['subrun'],planes[0].iloc[0]['event']))
+        fig.write_html(f"{write}/{df[0].iloc[0]['run']}_{df[0].iloc[0]['subrun']}_{df[0].iloc[0]['event']}.html")
 
 def concat_events(fname):
     f = NuMLFile(fname)
