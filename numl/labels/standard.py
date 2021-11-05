@@ -68,10 +68,13 @@ def panoptic_label(part):
               sl = label.muon.value
               slc = None
             elif part.start_process == b'hIoni':
-              sl = label.pion.value
+              if abs(parent_type) == 2212:
+                sl = label.hadron.value
+              else:
+                sl = label.pion.value
               slc = None
             else:
-              sl = label.shower.value
+              sl = label.diffuse.value
               slc = None
           else:
             sl = label.delta.value
