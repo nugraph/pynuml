@@ -13,10 +13,10 @@ class PTOut:
       MPI.COMM_WORLD.Abort(1)
 
   def save(self, obj, name):
-    torch.save(obj, os.join(self.outdir, name)+".pt")
+    torch.save(obj, os.path.join(self.outdir, name)+".pt")
 
   def exists(self, name):
-    return osp.exists(osp.join(self.outdir, name)+".pt")
+    return os.path.exists(os.path.join(self.outdir, name)+".pt")
 
 class H5Out:
   def __init__(self, fname):
