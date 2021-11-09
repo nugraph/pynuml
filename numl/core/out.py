@@ -1,4 +1,4 @@
-import os, torch, h5py, sys
+import os, os.path as osp, torch, h5py, sys
 from mpi4py import MPI
 
 class PTOut:
@@ -13,7 +13,7 @@ class PTOut:
       MPI.COMM_WORLD.Abort(1)
 
   def save(self, obj, name):
-    torch.save(obj, os.join(self.outdir, name)+".pt")
+    torch.save(obj, osp.join(self.outdir, name)+".pt")
 
   def exists(self, name):
     return osp.exists(osp.join(self.outdir, name)+".pt")
