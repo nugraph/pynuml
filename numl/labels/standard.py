@@ -14,18 +14,6 @@ class label(enum.Enum):
   diffuse = 7
   invisible = 8
 
-def timing(f):
-  @wraps(f)
-  def wrap(*args, **kw):
-    ts = time()
-    result = f(*args, **kw)
-    te = time()
-    print('func:%r took: %2.4f sec' % \
-    (f.__name__, te-ts))
-    return result
-  return wrap
-
-@timing
 def panoptic_label(part):
   def walk(part, particles, depth, sl, il):
     def s(part, particles):
