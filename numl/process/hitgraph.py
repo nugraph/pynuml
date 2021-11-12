@@ -6,6 +6,7 @@ from ..core.out import PTOut, H5Out
 from mpi4py import MPI
 import numpy as np
 import sys
+import numl
 
 edep1_t = 0.0
 edep2_t = 0.0
@@ -13,13 +14,13 @@ hit_merge_t = 0.0
 torch_t = 0.0
 plane_t = 0.0
 label_t = 0.0
-knn_t = 0.0
+edge_t = 0.0
 profiling = False
 
 def process_event_singleplane(event_id, evt, l, e, **edge_args):
   """Process an event into graphs"""
 
-  global edep1_t, edep2_t, hit_merge_t, torch_t, plane_t, label_t, knn_t
+  global edep1_t, edep2_t, hit_merge_t, torch_t, plane_t, label_t, edge_t
   global profiling
   if profiling:
     start_t = MPI.Wtime()
@@ -95,7 +96,7 @@ def process_event_singleplane(event_id, evt, l, e, **edge_args):
 
     if profiling:
       end_t = MPI.Wtime()
-      knn_t += end_t - start_t
+      edge_t += end_t - start_t
       start_t = end_t
 
   return ret
@@ -104,7 +105,7 @@ def process_event(event_id, evt, l, e, **edge_args):
   """Process an event into graphs"""
   # skip any events with no simulated hits
 
-  global edep1_t, edep2_t, hit_merge_t, torch_t, plane_t, label_t, knn_t
+  global edep1_t, edep2_t, hit_merge_t, torch_t, plane_t, label_t, edge_t
   global profiling
   if profiling:
     start_t = MPI.Wtime()
@@ -191,7 +192,7 @@ def process_event(event_id, evt, l, e, **edge_args):
 
     if profiling:
       end_t = MPI.Wtime()
-      knn_t += end_t - start_t
+      edge_t += end_t - start_t
       start_t = end_t
 
   if data["y_s_u"].max() > 7 or data["y_s_v"].max() > 7 or data["y_s_y"].max() > 7:
@@ -340,9 +341,9 @@ def process_file(out, fname, g=process_event, l=standard.semantic_label,
   if profiling:
     total_time = MPI.Wtime() - start_t
 
-    global edep1_t, edep2_t, hit_merge_t, torch_t, plane_t, label_t, knn_t
+    global edep1_t, edep2_t, hit_merge_t, torch_t, plane_t, label_t, edge_t
 
-    total_t = np.array([read_time, build_list_time, graph_time, write_time, total_time, edep1_t, edep2_t, label_t, hit_merge_t, plane_t, torch_t, knn_t])
+    total_t = np.array([read_time, build_list_time, graph_time, write_time, total_time, edep1_t, edep2_t, label_t, hit_merge_t, plane_t, torch_t, edge_t])
     max_total_t = np.zeros(12)
     comm.Reduce(total_t, max_total_t, op=MPI.MAX, root=0)
     min_total_t = np.zeros(12)
@@ -391,13 +392,33 @@ def process_file(out, fname, g=process_event, l=standard.semantic_label,
 
     if rank == 0:
       print("---- Timing break down of graph creation phase (in seconds) ------")
-      print("edep grouping   time MAX=%8.2f  MIN=%8.2f" % (max_total_t[5], min_total_t[5]))
-      print("edep merge      time MAX=%8.2f  MIN=%8.2f" % (max_total_t[6], min_total_t[6]))
-      print("labelling       time MAX=%8.2f  MIN=%8.2f" % (max_total_t[7], min_total_t[7]))
-      print("hit_table merge time MAX=%8.2f  MIN=%8.2f" % (max_total_t[8], min_total_t[8]))
-      print("plane build     time MAX=%8.2f  MIN=%8.2f" % (max_total_t[9], min_total_t[9]))
-      print("torch_geometric time MAX=%8.2f  MIN=%8.2f" % (max_total_t[10], min_total_t[10]))
-      print("edge knn        time MAX=%8.2f  MIN=%8.2f" % (max_total_t[11], min_total_t[11]))
+      print("edep grouping               time MAX=%8.2f  MIN=%8.2f" % (max_total_t[5], min_total_t[5]))
+      print("edep merge                  time MAX=%8.2f  MIN=%8.2f" % (max_total_t[6], min_total_t[6]))
+      if l == numl.labels.standard.panoptic_label:
+        print("labelling standard          time MAX=%8.2f  MIN=%8.2f" % (max_total_t[7], min_total_t[7]))
+      elif l == numl.labels.standard.semantic_label:
+        print("labelling standard semantic time MAX=%8.2f  MIN=%8.2f" % (max_total_t[7], min_total_t[7]))
+      elif l == numl.labels.standard.instance_label:
+        print("labelling standard instance time MAX=%8.2f  MIN=%8.2f" % (max_total_t[7], min_total_t[7]))
+      elif l == numl.labels.ccqe.semantic_label:
+        print("labelling ccqe semantic     time MAX=%8.2f  MIN=%8.2f" % (max_total_t[7], min_total_t[7]))
+      elif l == numl.labels.ccqe.edge_label:
+        print("labelling ccqe              time MAX=%8.2f  MIN=%8.2f" % (max_total_t[7], min_total_t[7]))
+      else:
+        print("labelling                   time MAX=%8.2f  MIN=%8.2f" % (max_total_t[7], min_total_t[7]))
+      print("hit_table merge             time MAX=%8.2f  MIN=%8.2f" % (max_total_t[8], min_total_t[8]))
+      print("plane build                 time MAX=%8.2f  MIN=%8.2f" % (max_total_t[9], min_total_t[9]))
+      print("torch_geometric             time MAX=%8.2f  MIN=%8.2f" % (max_total_t[10], min_total_t[10]))
+      if e == numl.graph.edges.delaunay:
+        print("edge indexing delaunay      time MAX=%8.2f  MIN=%8.2f" % (max_total_t[11], min_total_t[11]))
+      elif e == numl.graph.edges.radius:
+        print("edge indexing radius        time MAX=%8.2f  MIN=%8.2f" % (max_total_t[11], min_total_t[11]))
+      elif e == numl.graph.edges.knn:
+        print("edge indexing knn           time MAX=%8.2f  MIN=%8.2f" % (max_total_t[11], min_total_t[11]))
+      elif e == numl.graph.edges.window:
+        print("edge indexing window        time MAX=%8.2f  MIN=%8.2f" % (max_total_t[11], min_total_t[11]))
+      else:
+        print("edge indexing               time MAX=%8.2f  MIN=%8.2f" % (max_total_t[11], min_total_t[11]))
       print("(MAX and MIN timings are among %d processes)" % nprocs)
       print("------------------------------------------------------------------")
       print("Number of MPI processes          =%8d" % nprocs)
