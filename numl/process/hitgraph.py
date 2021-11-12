@@ -16,7 +16,7 @@ label_t = 0.0
 knn_t = 0.0
 profiling = False
 
-def process_event_singleplane(event_id, evt, l, e, **edge_args):
+def process_event_singleplane(event_id, evt, l, e, lower_bnd=20, **edge_args):
   """Process an event into graphs"""
 
   global edep1_t, edep2_t, hit_merge_t, torch_t, plane_t, label_t, knn_t
@@ -40,9 +40,9 @@ def process_event_singleplane(event_id, evt, l, e, **edge_args):
     edep2_t += end_t - start_t
     start_t = end_t
 
-  # skip events with fewer than 50 simulated hits in any plane
+  # skip events with fewer than lower_bnd simulated hits in any plane
   for i in range(3):
-    if (evt_hit.global_plane==i).sum() < 20: return
+    if (evt_hit.global_plane==i).sum() < lower_bnd: return
 
   # get labels for each evt_particle
   evt_part = l(evt["particle_table"])
@@ -100,7 +100,7 @@ def process_event_singleplane(event_id, evt, l, e, **edge_args):
 
   return ret
 
-def process_event(event_id, evt, l, e, **edge_args):
+def process_event(event_id, evt, l, e, lower_bnd=20, **edge_args):
   """Process an event into graphs"""
   # skip any events with no simulated hits
 
@@ -125,9 +125,9 @@ def process_event(event_id, evt, l, e, **edge_args):
     edep2_t += end_t - start_t
     start_t = end_t
 
-  # skip events with fewer than 50 simulated hits in any plane
+  # skip events with fewer than lower_bnd simulated hits in any plane
   for i in range(3):
-    if (evt_hit.global_plane==i).sum() < 20: return
+    if (evt_hit.global_plane==i).sum() < lower_bnd: return
 
   # get labels for each particle
   evt_part = l(evt["particle_table"])
