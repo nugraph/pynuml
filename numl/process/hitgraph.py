@@ -197,7 +197,7 @@ def process_event(event_id, evt, l, e, **edge_args):
   return [[f"r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}", tg.data.Data(**data)]]
 
 def process_file(out, fname, g=process_event, l=standard.semantic_label,
-  e=edges.delaunay, p=None, use_seq=False, profile=False):
+  e=edges.delaunay, p=None, use_seq=False, profile=False, overwrite=False):
 
   comm = MPI.COMM_WORLD
   nprocs = comm.Get_size()
@@ -294,10 +294,15 @@ def process_file(out, fname, g=process_event, l=standard.semantic_label,
 
     # avoid overwriting to already existing files
     if isinstance(out, PTOut):
-      import os.path as osp
-      if osp.exists(f"{out.outdir}/r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}_p0.pt"):
-        # print(f"{rank}: skipping event ID {event_id}")
-        continue
+      import os.path as osp, os
+      out_file = f"{out.outdir}/r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}.pt"
+      if osp.exists(out_file):
+        if overwrite:
+          os.remove(out_file)
+        else:
+          print(f"Error: file already exists: {out_file}")
+          sys.stdout.flush()
+          MPI.COMM_WORLD.Abort(1)
 
     # create graphs using data in evt_list[i]
     # Note an event may create more than one graph

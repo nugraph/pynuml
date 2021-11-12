@@ -9,38 +9,41 @@ def main(argv):
   inputfile  = ""
   outputfile = ""
   output_h5  = False
+  overwrite  = False
   try:
-    opts, args = getopt.getopt(argv,"hps5i:o:",["ifile=","ofile="])
+    opts, args = getopt.getopt(argv,"hpsf5i:o:",["ifile=","ofile="])
   except getopt.GetoptError:
-    print("Usage: process.py [-p|-s|-5] -i <inputfile> -o <outputfile>")
+    print("Usage: process.py [-p|-s|-f|-5] -i <inputfile> -o <outputfile>")
     sys.exit(2)
   for opt, arg in opts:
     if opt == "-h":
-      print("Usage: process.py [-p|-s|-5] -i <inputfile> -o <outputfile>")
+      print("Usage: process.py [-p|-s|-f|-5] -i <inputfile> -o <outputfile>")
       sys.exit()
-    elif opt in ("-i", "--ifile"):
+    elif opt in ("-i", "--ifile"):  # input file name
       inputfile = arg
-    elif opt in ("-o", "--ofile"):
-      outputfile = arg
-    elif opt == "-5":
+    elif opt in ("-o", "--ofile"):  # output file prefix name if '-5' is used
+      outputfile = arg              # output folder name for pytorch files
+    elif opt == "-5":   # output file in HDF5 files, one per MPI process
       output_h5 = True
-    elif opt == "-p":
+    elif opt == "-p":   # enable timing profiling and outputs
       profiling = True
-    elif opt == "-s":
+    elif opt == "-s":   # use partitioning dataset evt.seq instead of evt.seq_cnt
       use_seq = True
+    elif opt == "-f":   # overwrite the output file, if exists
+      overwrite = True
 
   if inputfile == "" or outputfile == "":
-    print("Usage: process.py [-p|-s|-5] -i <inputfile> -o <outputfile>")
+    print("Usage: process.py [-p|-s|-f|-5] -i <inputfile> -o <outputfile>")
     sys.exit(2)
 
   if output_h5:
     # output HDF5 files, one graph per group, one file per MPI process
-    out = numl.core.out.H5Out(outputfile)
+    out = numl.core.out.H5Out(outputfile, overwrite)
   else:
     # output pytorch files, one graph per file
     out = numl.core.out.PTOut(outputfile)
 
-  numl.process.hitgraph.process_file(out, inputfile, l=numl.labels.standard.panoptic_label, use_seq=use_seq, profile=profiling)
+  numl.process.hitgraph.process_file(out, inputfile, l=numl.labels.standard.panoptic_label, use_seq=use_seq, profile=profiling, overwrite=overwrite)
 
 if __name__ == "__main__":
    main(sys.argv[1:])

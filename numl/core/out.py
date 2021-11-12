@@ -19,12 +19,20 @@ class PTOut:
     return osp.exists(osp.join(self.outdir, name)+".pt")
 
 class H5Out:
-  def __init__(self, fname):
+  def __init__(self, fname, overwrite=False):
     # This implements one-file-per-process I/O strategy.
     # append MPI process rank to the output file name
     rank = MPI.COMM_WORLD.Get_rank()
     file_ext = ".{:04d}.h5"
+    self.f = None
     self.fname = fname + file_ext.format(rank)
+    if osp.exists(self.fname):
+      if overwrite:
+        os.remove(self.fname)
+      else:
+        print(f"Error: file already exists: {self.fname}")
+        sys.stdout.flush()
+        MPI.COMM_WORLD.Abort(1)
     # open/create the HDF5 file
     self.f = h5py.File(self.fname, "w")
 
@@ -43,5 +51,5 @@ class H5Out:
         self.f.create_dataset(f"/{name}/{key}", data=val)
 
   def __del__(self):
-    self.f.close()
+    if self.f != None: self.f.close()
 
