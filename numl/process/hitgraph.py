@@ -67,7 +67,7 @@ def process_event_singleplane(event_id, evt, l, e, **edge_args):
     # Reset indices
     plane = plane.reset_index(drop=True).reset_index()
 
-    pos = plane[["global_wire", "global_time"]].values / torch.tensor([0.5, 0.075])[None, :].float()
+    pos = plane[["global_wire", "global_time"]].values * torch.tensor([0.5, 0.075])[None, :].float()
     node_feats = ["global_plane", "global_wire", "global_time", "tpc",
       "local_plane", "local_wire", "local_time", "integral", "rms"]
 
