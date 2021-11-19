@@ -194,6 +194,10 @@ def process_event(event_id, evt, l, e, **edge_args):
       knn_t += end_t - start_t
       start_t = end_t
 
+  if data["y_s_u"].max() > 7 or data["y_s_v"].max() > 7 or data["y_s_y"].max() > 7:
+    print("\n  error: hit with invisible label found! skipping event\n")
+    return []
+
   return [[f"r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}", tg.data.Data(**data)]]
 
 def process_file(out, fname, g=process_event, l=standard.semantic_label,
