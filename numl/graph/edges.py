@@ -1,20 +1,13 @@
-def window(data, wire_distance=5, time_distance=50):
-    '''Form graph edges forming edges in a given window around each node'''
-    import torch 
+def window(data, wire_distance=3, time_distance=3):
+  '''Form graph edges forming edges in a given window around each node'''
+  import torch, pandas as pd
 
-    edge_index = []
-    for node_1 in range(len(data)):
-        for node_2 in range(len(data)):
-            if node_1 == node_2: continue
-            if abs(data.pos[node_1][0] - data.pos[node_2][0]) < wire_distance and\
-                abs(data.pos[node_1][1] - data.pos[node_2][1] < time_distance):
-                edge_index.append([node_1, node_2])
-
-    edge_index = torch.tensor(edge_index).T
-    
-    data.edge_index = edge_index
-    return data
-
+  df = pd.DataFrame(data.pos.numpy(), columns=["wire", "time"]).reset_index()
+  df["dummy"] = 1
+  df = df.merge(df, on="dummy", how="outer", suffixes=["_1","_2"]).drop("dummy", axis="columns")
+  df = df[(abs(df.wire_1-df.wire_2)<wire_distance) & (abs(df.time_1-df.time_2)<time_distance) & (df.index_1 != df.index_2)]
+  data.edge_index = torch.tensor(df[["index_1", "index_2"]].to_numpy())
+  return data
 
 def delaunay(data):
   '''Form graph edges using Delaunay triangulation'''
@@ -23,12 +16,12 @@ def delaunay(data):
 
 
 def radius(data, r=16, max_num_neighbours=32):
-    '''Form graph edges using Radius Graph transformation'''
-    import torch, torch_geometric as tg
-    return tg.transforms.RadiusGraph(r=r, max_num_neighbors=max_num_neighbours)(data)
+  '''Form graph edges using Radius Graph transformation'''
+  import torch, torch_geometric as tg
+  return tg.transforms.RadiusGraph(r=r, max_num_neighbors=max_num_neighbours)(data)
 
 
 def knn(data, k=6):
-    '''Form graph edges using KNN Graph transformation'''
-    import torch, torch_geometric as tg
-    return tg.transforms.KNNGraph(k=k)(data)
+  '''Form graph edges using KNN Graph transformation'''
+  import torch, torch_geometric as tg
+  return tg.transforms.KNNGraph(k=k)(data)
