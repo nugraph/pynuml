@@ -67,7 +67,7 @@ def process_event_singleplane(event_id, evt, l, e, **edge_args):
     # Reset indices
     plane = plane.reset_index(drop=True).reset_index()
 
-    pos = plane[["global_wire", "global_time"]].values * torch.tensor([0.5, 0.075])[None, :].float()
+    pos = torch.tensor(plane[["global_wire", "global_time"]].values) * torch.tensor(np.array([0.3, 0.055]))[None, :]
     node_feats = ["global_plane", "global_wire", "global_time", "tpc",
       "local_plane", "local_wire", "local_time", "integral", "rms"]
 
@@ -170,7 +170,7 @@ def process_event(event_id, evt, l, e, **edge_args):
 
     # Save to file
     tmp = tg.data.Data(
-      pos=plane[["global_wire", "global_time"]].values / torch.tensor([0.5, 0.075])[None, :].float()
+      pos=torch.tensor(plane[["global_wire", "global_time"]].values) * torch.tensor(np.array([0.3, 0.055]))[None, :]
     )
     node_feats = ["global_plane", "global_wire", "global_time", "tpc",
       "local_plane", "local_wire", "local_time", "integral", "rms"]
