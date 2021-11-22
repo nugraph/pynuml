@@ -6,7 +6,7 @@ def window(data, wire_distance=3, time_distance=3):
   df["dummy"] = 1
   df = df.merge(df, on="dummy", how="outer", suffixes=["_1","_2"]).drop("dummy", axis="columns")
   df = df[(abs(df.wire_1-df.wire_2)<wire_distance) & (abs(df.time_1-df.time_2)<time_distance) & (df.index_1 != df.index_2)]
-  data.edge_index = torch.tensor(df[["index_1", "index_2"]].to_numpy())
+  data.edge_index = torch.tensor(df[["index_1", "index_2"]].transpose().to_numpy())
   return data
 
 def delaunay(data):
