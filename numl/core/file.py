@@ -24,12 +24,13 @@ class NuMLFile:
     # open the input HDF5 file in parallel
     self._fd = h5py.File(self._filename, "r", driver='mpio', comm=MPI.COMM_WORLD)
 
-    # all processes read dataset "event_table/event_id" stored in an numpy array
-    self._index = self._fd["event_table/event_id"][:]
-    # print("event_table/event_id type==",type(self._index)," shape=",self._index.shape)
+    # obtain metadata of dataset "event_table/event_id", later the dataset will
+    # be read into self._index as a numpy array in data_partition()
+    self._index = self._fd.get("event_table/event_id")
+    self._num_events = self._index.shape[0]
 
     # self._groups is a python list, each member is a 2-element list consisting
-    # of group name, and a python list of dataset names
+    # of a group name, and a python list of dataset names
     self._groups = []
 
     # a python dictionary storing a sequence-count dataset in each group, keys
@@ -37,6 +38,9 @@ class NuMLFile:
     # to this process
     self._seq_cnt = {}
     self._evt_seq = {}
+
+    self._whole_seq_cnt = {}
+    self._whole_seq     = {}
 
     self._use_seq_cnt = True
 
@@ -49,12 +53,12 @@ class NuMLFile:
     # starting array index of event_table/event_id assigned to this process
     self._my_start = -1
 
-    # end array index of event_table/event_id assigned to this process
-    self._my_end = -1
+    # number of array elements of event_table/event_id assigned to this process
+    self._my_count = -1
 
   def __len__(self):
     # inquire the number of unique event IDs in the input file
-    return len(self._index)
+    return self._num_events
 
   def __str__(self):
     with h5py.File(self._filename, "r") as f:
@@ -98,7 +102,7 @@ class NuMLFile:
     """get the index for a given row"""
     #with h5py.File(self._filename, "r") as f:
       #return f["event_table/event_id"][idx]
-    return self._index[idx]
+    return self._index[idx - self._my_start]
 
   def __getitem__(self, idx):
     """load a single event from file"""
@@ -119,6 +123,130 @@ class NuMLFile:
 
   def __del__(self):
     self._fd.close()
+
+  def read_seq(self):
+    for group, datasets in self._groups:
+      try:
+        # read an HDF5 dataset into a numpy array
+        buf = self._fd.get(group+"/event_id.seq")
+        self._whole_seq[group] = np.array(buf)
+      except KeyError:
+        print("Error: dataset",group+"/event_id.seq does not exist")
+        sys.stdout.flush()
+        comm.Abort(1)
+
+  def read_seq_cnt(self):
+    for group, datasets in self._groups:
+      try:
+        # read an HDF5 dataset into a numpy array
+        buf = self._fd.get(group+"/event_id.seq_cnt")
+        self._whole_seq_cnt[group] = np.array(buf)
+      except KeyError:
+        print("Error: dataset",group+"/event_id.seq_cnt does not exist")
+        sys.stdout.flush()
+        comm.Abort(1)
+
+  def data_partition(self, use_seq=False, evt_num_based=True):
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    nprocs = comm.Get_size()
+    starts = np.zeros(nprocs, dtype=np.int)
+    counts = np.zeros(nprocs, dtype=np.int)
+
+    self._use_seq_cnt = not use_seq
+
+    if rank == 0:
+      if self._use_seq_cnt:
+        self.read_seq_cnt()
+      else:
+        self.read_seq()
+
+      num_events = self._num_events
+      # print("num_events=",num_events)
+
+      # print("evt_num_based=",evt_num_based)
+      if evt_num_based == False:
+        # Below implements event ID based partitioning, which
+        # calculates the start and count of evt.seq id for each process
+        _count = num_events // nprocs
+        for j in range(num_events % nprocs):
+          starts[j] = _count * j + j
+          counts[j] = _count + 1
+
+        for j in range(num_events % nprocs, nprocs):
+          starts[j] = _count * j + num_events % nprocs
+          counts[j] = _count
+
+      else: # event amount based partitioning, which calculates event sizes
+            # across all groups. Note it is possible multiple consecutive rows
+            # a dataset have the same event ID. It is also possible some event
+            # IDs contain no data. First, we accumulate numbers of events
+            # across all groups
+        evt_size = np.zeros(num_events, dtype=np.int)
+        if self._use_seq_cnt:
+          for group, datasets in self._groups:
+            seq_cnt = self._whole_seq_cnt[group]
+            for i in range(seq_cnt.shape[0]):
+              if evt_size[seq_cnt[i, 0]] < seq_cnt[i, 1]:
+                evt_size[seq_cnt[i, 0]] = seq_cnt[i, 1]
+        else:
+          for group, datasets in self._groups:
+            seq = self._whole_seq[group]
+            for i in range(seq.shape[0]):
+              evt_size[seq[i, 0]] += 1
+
+        # now we have collected the number of events per event ID across all groups
+        total_evt_num = np.sum(evt_size)
+        avg_evt_num = total_evt_num // nprocs
+        # print("total_evt_num=",total_evt_num," avg_evt_num=",avg_evt_num)
+
+        # assign ranges of event IDs to individual processes
+        acc_evt_num = 0
+        rank_id = 0
+        for j in range(num_events):
+          if rank_id == nprocs - 1: break
+          if acc_evt_num + evt_size[j] >= avg_evt_num:
+            remain_r = avg_evt_num - acc_evt_num
+            remain_l = evt_size[j] - remain_r
+            if remain_r > remain_l:
+              # assign event j to rank_id
+              counts[rank_id] += 1
+              acc_evt_num = 0
+            else:
+              # assign event j to rank_id+1
+              counts[rank_id+1] = 1
+              acc_evt_num = evt_size[j]
+            # done with rank_id i
+            rank_id += 1
+            starts[rank_id] = starts[rank_id-1] + counts[rank_id-1]
+          else:
+            counts[rank_id] += 1
+            acc_evt_num += evt_size[j]
+
+        # if j < num_events: print("rank_id=",rank_id," j=",j," < num_events",num_events)
+        # assign the remaining to the last process
+        counts[nprocs-1] += num_events - j
+
+    # All processes participate the collective communication, scatter.
+    # Root distributes start and count to all processes. Note only root process
+    # uses starts and counts.
+    start_count = np.empty([nprocs, 2], dtype=np.int)
+    start_count[:, 0] = starts[:]
+    start_count[:, 1] = counts[:]
+    recvbuf = np.empty(2, dtype=np.int)
+    comm.Scatter(start_count, recvbuf, root=0)
+    self._my_start = recvbuf[0]
+    self._my_count = recvbuf[1]
+
+    # This process is assigned event IDs of range from self._my_start to
+    # (self._my_start + self._my_count - 1)
+    # print("my_start=",self._my_start," my_count=",self._my_count);
+
+    # each process reads its share of dataset "event_table/event_id" and
+    # stores it in an numpy array
+    self._index = np.array(self._index[self._my_start : self._my_start + self._my_count, :])
+
+    return starts, counts
 
   def binary_search_min(self, key, base, nmemb):
     low = 0
@@ -142,7 +270,7 @@ class NuMLFile:
             high = mid
     return (low - 1)
 
-  def calc_bound_seq(self, starts, ends, group):
+  def calc_bound_seq(self, starts, counts, group):
     # return the lower and upper array indices of subarray assigned to this
     # process, using the partition sequence dataset
 
@@ -150,25 +278,24 @@ class NuMLFile:
     rank = comm.Get_rank()
     nprocs = comm.Get_size()
 
-    displ = np.empty([nprocs], dtype=np.int)
-    count = np.empty([nprocs], dtype=np.int)
-    bounds = np.empty([nprocs, 2], dtype=np.int)
+    displ  = np.zeros([nprocs], dtype=np.int)
+    count  = np.zeros([nprocs], dtype=np.int)
+    bounds = np.zeros([nprocs, 2], dtype=np.int)
 
-    all_evt_seq = []
+    all_evt_seq = None
     if rank == 0:
-      # root reads the entire dataset event_id.seq
-      try:
-        all_evt_seq = self._fd[group+"/event_id.seq"][:]
-      except KeyError:
-        print("Error: dataset",group+"/event_id.seq does not exist")
-        sys.stdout.flush()
-        comm.Abort(1)
+      # root reads the entire dataset event_id.seq, if not already
+      if not self._whole_seq: self.read_seq()
+
+      all_evt_seq = self._whole_seq[group]
       dim = len(all_evt_seq)
 
       # calculate displ, count to be used in scatterV for all processes
       for i in range(nprocs):
+        if counts[i] == 0: continue
+        end = starts[i] + counts[i] - 1
         bounds[i, 0] = self.binary_search_min(starts[i], all_evt_seq, dim)
-        bounds[i, 1] = self.binary_search_max(ends[i],   all_evt_seq, dim)
+        bounds[i, 1] = self.binary_search_max(end,       all_evt_seq, dim)
         displ[i] = bounds[i, 0]
         count[i] = bounds[i, 1] - bounds[i, 0] + 1
 
@@ -180,8 +307,11 @@ class NuMLFile:
     # this process is assigned array indices from lower to upper
     # print("group=",group," lower=",lower," upper=",upper," count=",upper-lower)
 
-    lower = lower_upper[0]
-    upper = lower_upper[1] + 1
+    lower = 0
+    upper = 0
+    if self._my_count > 0:
+      lower = lower_upper[0]
+      upper = lower_upper[1] + 1
 
     # root scatters the subarray of evt_seq to all processes
     self._evt_seq[group] = np.zeros(upper - lower, dtype=np.int64)
@@ -189,53 +319,50 @@ class NuMLFile:
 
     return lower, upper
 
-  def calc_bound_seq_cnt(self, starts, ends, group):
+  def calc_bound_seq_cnt(self, starts, counts, group):
     # return the lower and upper array indices of subarray assigned to this
     # process, using the partition sequence-count dataset
 
-    comm = MPI.COMM_WORLD
-    rank = comm.Get_rank()
+    comm   = MPI.COMM_WORLD
+    rank   = comm.Get_rank()
     nprocs = comm.Get_size()
 
-    displ = np.empty([nprocs], dtype=np.int)
-    count = np.empty([nprocs], dtype=np.int)
-    seq_cnt = np.empty([nprocs, 2], dtype=np.int)
+    displ   = np.zeros([nprocs], dtype=np.int)
+    count   = np.zeros([nprocs], dtype=np.int)
+    seq_cnt = np.zeros([nprocs, 2], dtype=np.int)
 
-    all_seq_cnt = []
+    all_seq_cnt = None
     if rank == 0:
-      # root reads the entire dataset event_id.seq_cnt
-      try:
-        all_seq_cnt = self._fd[group+"/event_id.seq_cnt"][:]
-      except KeyError:
-        print("Error: dataset",group+"/event_id.seq_cnt does not exist")
-        sys.stdout.flush()
-        comm.Abort(1)
+      # root reads the entire dataset event_id.seq_cnt, if not already
+      if not self._whole_seq_cnt: self.read_seq_cnt()
+
+      all_seq_cnt = self._whole_seq_cnt[group]
       dim = len(all_seq_cnt)
 
       # calculate displ, count for all processes to be used in scatterV
       recv_rank = 0  # receiver rank
       displ[recv_rank] = 0
       seq_cnt[recv_rank, 0] = 0
-      seq_end = ends[recv_rank]
+      seq_end = starts[recv_rank] + counts[recv_rank]
       seq_id = 0
       for i in range(dim):
-        if all_seq_cnt[i, 0] > seq_end :
+        if all_seq_cnt[i, 0] >= seq_end :
           seq_cnt[recv_rank, 1] = i - displ[recv_rank]
           recv_rank += 1  # move on to the next receiver rank
-          seq_end = ends[recv_rank]
+          seq_end = starts[recv_rank] + counts[recv_rank]
           displ[recv_rank] = i
           seq_cnt[recv_rank, 0] = seq_id
         seq_id += all_seq_cnt[i, 1]
 
       # last receiver rank
-      seq_cnt[nprocs-1, 1] = dim - displ[nprocs-1]
+      seq_cnt[recv_rank, 1] = dim - displ[recv_rank]
 
-      # print("starts=",starts," ends=",ends," displ=",displ," count=",count," seq_cnt=",seq_cnt )
+      # print("starts=",starts," counts=",counts," displ=",displ," count=",count," seq_cnt=",seq_cnt )
       displ[:] *= 2
       count[:] = seq_cnt[:, 1] * 2
 
     # root distributes seq_cnt to all processes
-    my_seq_cnt  = np.empty([2], dtype=np.int)
+    my_seq_cnt = np.empty([2], dtype=np.int)
     comm.Scatter(seq_cnt, my_seq_cnt, root=0)
 
     # this process is assigned array indices from lower to upper
@@ -248,33 +375,30 @@ class NuMLFile:
     # root scatters the subarray of evt_seq to all processes
     comm.Scatterv([all_seq_cnt, count, displ, MPI.LONG_LONG], self._seq_cnt[group], root=0)
 
-    lower = my_seq_cnt[0]
-    upper = my_seq_cnt[0] + np.sum(self._seq_cnt[group][:, 1])
+    lower = 0
+    upper = 0
+    if self._my_count > 0:
+      lower = my_seq_cnt[0]
+      upper = my_seq_cnt[0] + np.sum(self._seq_cnt[group][:, 1])
 
     return lower, upper
 
-  def read_data(self, starts, ends, use_seq=False, profile=False):
+  def read_data(self, starts, counts, profile=False):
     # Parallel read dataset subarrays assigned to this process ranging from
-    # array index of my_start to my_end
-    comm   = MPI.COMM_WORLD
-    rank   = comm.Get_rank()
-    nprocs = comm.Get_size()
-
-    self._my_start    = starts[rank]
-    self._my_end      = ends[rank]
-    self._use_seq_cnt = not use_seq
-    bnd_time = 0
-    rds_time = 0
+    # array index of self._my_start to (self._my_start + self._my_count - 1)
+    if profile:
+      bnd_time = 0
+      rds_time = 0
 
     for group, datasets in self._groups:
       if profile: time_s = MPI.Wtime()
 
-      if use_seq:
-        # use evt_id.seq to calculate subarray boundaries
-        lower, upper = self.calc_bound_seq(starts, ends, group)
-      else:
+      if self._use_seq_cnt:
         # use evt_id.seq_cnt to calculate subarray boundaries
-        lower, upper = self.calc_bound_seq_cnt(starts, ends, group)
+        lower, upper = self.calc_bound_seq_cnt(starts, counts, group)
+      else:
+        # use evt_id.seq to calculate subarray boundaries
+        lower, upper = self.calc_bound_seq(starts, counts, group)
 
       if profile:
         time_e = MPI.Wtime()
@@ -286,8 +410,10 @@ class NuMLFile:
       # dataset as the key.
       self._data[group] = {}
       for dataset in datasets:
-        with self._fd[group][dataset].collective:  # read each dataset collectively
-          self._data[group][dataset] = self._fd[group][dataset][lower : upper]
+        # read subarray into a numpy array using independent mode (HDF5 default)
+        self._data[group][dataset] = np.array(self._fd[group][dataset][lower : upper])
+        # with self._fd[group][dataset].collective:  # read each dataset collectively
+          # self._data[group][dataset] = self._fd[group][dataset][lower : upper]
 
       if profile:
         time_e = MPI.Wtime()
@@ -295,11 +421,14 @@ class NuMLFile:
         time_s = time_e
 
     if profile:
+      rank   = MPI.COMM_WORLD.Get_rank()
+      nprocs = MPI.COMM_WORLD.Get_size()
+
       total_t = np.array([bnd_time, rds_time])
       max_total_t = np.zeros(2)
-      comm.Reduce(total_t, max_total_t, op=MPI.MAX, root = 0)
+      MPI.COMM_WORLD.Reduce(total_t, max_total_t, op=MPI.MAX, root = 0)
       min_total_t = np.zeros(2)
-      comm.Reduce(total_t, min_total_t, op=MPI.MIN, root = 0)
+      MPI.COMM_WORLD.Reduce(total_t, min_total_t, op=MPI.MIN, root = 0)
       if rank == 0:
         print("---- Timing break down of the file read phase (in seconds) -------")
         if self._use_seq_cnt:
@@ -310,13 +439,16 @@ class NuMLFile:
         print("read datasets   time MAX=%8.2f  MIN=%8.2f" % (max_total_t[1], min_total_t[1]))
         print("(MAX and MIN timings are among %d processes)" % nprocs)
 
-  def build_evt(self, start, end):
-    # This process is responsible for event IDs from start to end.
+  def build_evt(self, start=None, count=None):
+    # This process is responsible for event IDs from start to (start+count-1).
     # All data of the same event ID will be used to create a graph.
     # This function collects all data based on event_id.seq or event_id.seq_cnt
     # into a python list containing Pandas DataFrames, one for a unique event
     # ID.
     ret_list = []
+
+    if start is None: start = self._my_start
+    if count is None: count = self._my_count
 
     num_miss = 0
 
@@ -327,7 +459,7 @@ class NuMLFile:
     idx_start = dict.fromkeys(self._data.keys(), 0)
 
     # Iterate through assigned event IDs
-    for idx in range(int(start), int(end) + 1):
+    for idx in range(int(start), int(start+count)):
       # check if idx is missing in all groups
       is_missing = True
       if self._use_seq_cnt:
@@ -415,6 +547,6 @@ class NuMLFile:
       # Each of them corresponds to the data of one single event ID
       ret_list.append(ret)
 
-    # print("start=",start," end=",end," num=",end-start+1," num miss IDs=",num_miss)
+    # print("start=",start," count=",count," num miss IDs=",num_miss)
     return ret_list
 
