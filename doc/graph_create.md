@@ -181,6 +181,7 @@
 * Labelling uses **ccqe.py**, edge indexing uses **KNN**
   + Output file folder's Lustre striping setting: striping count 1 and striping size 1 MiB
   + Output file size: 12.45 GiB (HDF5 files with compression enabled)
+  + 
    | No. MPI processes | 64      | 128    | 256    | 512    | 1024   |
    | ----------------- |--------:|-------:|-------:|-------:|-------:|
    | read from file    |    8.09 |   5.61 |   5.07 |   4.59 |  14.66 |
@@ -197,6 +198,7 @@
 * Labelling uses **standard.py**, edge indexing uses **Delaunay**
   + Output file folder's Lustre striping setting: striping count 8 and striping size 1 MiB
   + Output file size: 23 GiB (HDF5 files with compression enabled)
+  + 
    | No. MPI processes | 64      |  128    |  256    | 512    | 1024   |
    | ----------------- |--------:|--------:|--------:|-------:|-------:|
    | read from file    |   20.54 |   17.18 |   16.57 |  14.04 |  15.71 |
