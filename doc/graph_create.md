@@ -172,10 +172,15 @@
 * Input file: /global/cscratch1/sd/wkliao/uboone/numu_slice_89_seq_cnt_seq.h5
 * Input file's Lustre striping setting: striping count 32 and striping size 1 MiB
 * Input file size: 13.74 GiB
-* Labelling uses `ccqe.py`
-* Output file folder's Lustre striping setting: striping count 1 and striping size 1 MiB
-* Output file size: 12.45 GiB (HDF5 files with compression enabled)
-
+* Input data statistics:
+  + Number of event IDs: 574174
+  + Number of non-empty events: 245891
+  + Total size of all event data: 16.55 GiB
+  + Max event data size: 1077.9 KiB
+  + Min event data size:    3.0 KiB
+* Labelling uses **ccqe.py**, edge indexing uses **KNN**
+  + Output file folder's Lustre striping setting: striping count 1 and striping size 1 MiB
+  + Output file size: 12.45 GiB (HDF5 files with compression enabled)
    | No. MPI processes | 64      | 128    | 256    | 512    | 1024   |
    | ----------------- |--------:|-------:|-------:|-------:|-------:|
    | read from file    |    8.09 |   5.61 |   5.07 |   4.59 |  14.66 |
@@ -183,16 +188,26 @@
    | graph creation    | 1220.07 | 634.71 | 333.52 | 170.40 |  87.62 |
    | write to files    |  179.51 |  94.64 |  54.39 |  14.47 |   7.31 |
    | total             | 1519.54 | 787.78 | 412.49 | 204.60 | 116.78 |
-
-* Input data statistics:
-  + Number of event IDs: 574174
-  + Number of non-empty events: 245891
-  + Total size of all event data: 16.55 GiB
-  + Max event data size: 1077.9 KiB
-  + Min event data size:    3.0 KiB
 * Output data statistics:
   + Number of graphs: 537165
   + Total size of all graphs: 26.38 GiB
   + Max graph size: 629.8 KiB
   + Min graph size:   6.3 KiB
+
+* Labelling uses **standard.py**, edge indexing uses **Delaunay**
+  + Output file folder's Lustre striping setting: striping count 8 and striping size 1 MiB
+  + Output file size: 23 GiB (HDF5 files with compression enabled)
+   | No. MPI processes | 64      |  128    |  256    | 512    | 1024   |
+   | ----------------- |--------:|--------:|--------:|-------:|-------:|
+   | read from file    |   20.54 |   17.18 |   16.57 |  14.04 |  15.71 |
+   | build dataframes  |  164.49 |   76.54 |   41.66 |  20.81 |  10.81 |
+   | graph creation    | 4253.65 | 2204.69 | 1109.13 | 555.01 | 317.75 |
+   | write to files    |  343.28 |  122.31 |   63.34 |  31.82 |  16.62 |
+   | total             | 4745.70 | 2419.76 | 1229.73 | 618.55 | 359.58 |
+* Output data statistics:
+  + Number of graphs: 206370
+  + Total size of all graphs: 37.10 GiB
+  + Max graph size: 2.1 MiB
+  + Min graph size: 8.6 KiB
+
 
