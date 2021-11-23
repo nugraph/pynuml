@@ -4,20 +4,21 @@ import numl, glob
 import getopt
 
 def main(argv):
-  profiling  = False
-  use_seq    = False
-  inputfile  = ""
-  outputfile = ""
-  output_h5  = False
-  overwrite  = False
+  profiling    = False
+  use_seq      = False
+  inputfile    = ""
+  outputfile   = ""
+  output_h5    = False
+  overwrite    = False
+  use_evt_num  = True
   try:
-    opts, args = getopt.getopt(argv,"hpsf5i:o:",["ifile=","ofile="])
+    opts, args = getopt.getopt(argv,"hpsdf5i:o:",["ifile=","ofile="])
   except getopt.GetoptError:
-    print("Usage: process.py [-p|-s|-f|-5] -i <inputfile> -o <outputfile>")
+    print("Usage: process.py [-p|-s|-d|-f|-5] -i <inputfile> -o <outputfile>")
     sys.exit(2)
   for opt, arg in opts:
     if opt == "-h":
-      print("Usage: process.py [-p|-s|-f|-5] -i <inputfile> -o <outputfile>")
+      print("Usage: process.py [-p|-s|-d|-f|-5] -i <inputfile> -o <outputfile>")
       sys.exit()
     elif opt in ("-i", "--ifile"):  # input file name
       inputfile = arg
@@ -31,9 +32,11 @@ def main(argv):
       use_seq = True
     elif opt == "-f":   # overwrite the output file, if exists
       overwrite = True
+    elif opt == "-d":   # use event ID based data partitioning strategy
+      use_evt_num = False
 
   if inputfile == "" or outputfile == "":
-    print("Usage: process.py [-p|-s|-f|-5] -i <inputfile> -o <outputfile>")
+    print("Usage: process.py [-p|-s|-d|-f|-5] -i <inputfile> -o <outputfile>")
     sys.exit(2)
 
   if output_h5:
@@ -43,7 +46,11 @@ def main(argv):
     # output pytorch files, one graph per file
     out = numl.core.out.PTOut(outputfile)
 
-  numl.process.hitgraph.process_file(out, inputfile, l=numl.labels.standard.panoptic_label, use_seq=use_seq, profile=profiling, overwrite=overwrite)
+  numl.process.hitgraph.process_file(out, inputfile,
+                                     l=numl.labels.standard.panoptic_label,
+                                     use_seq=use_seq,
+                                     use_evt_num_based=use_evt_num,
+                                     profile=profiling)
 
 if __name__ == "__main__":
    main(sys.argv[1:])

@@ -35,6 +35,8 @@ class H5Out:
         MPI.COMM_WORLD.Abort(1)
     # open/create the HDF5 file
     self.f = h5py.File(self.fname, "w")
+    # print(f"{rank}: creating {self.fname}")
+    # sys.stdout.flush()
 
   def save(self, obj, name):
     for key, val in obj:
