@@ -26,6 +26,11 @@ def semantic_label(part):
   part["semantic_label"] = part.apply(func, axis=1)
   return part.reset_index(drop=True)[["g4_id", "semantic_label"]]
 
+def panoptic_label(part):
+  part = semantic_label(part)
+  part["instance_label"] = -1
+  return part
+
 def edge_label(edge):
 
   # False
