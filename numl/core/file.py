@@ -1,6 +1,12 @@
 import h5py, numpy as np, pandas as pd
 from mpi4py import MPI
 import sys
+import enum
+
+class Partition(enum.Enum):
+  evt_id_based = 0
+  evt_amnt_based = 1
+  particle_based = 2
 
 class NuMLFile:
   def __init__(self, file):
@@ -146,7 +152,7 @@ class NuMLFile:
         sys.stdout.flush()
         comm.Abort(1)
 
-  def data_partition(self, use_seq=False, evt_num_based=True):
+  def data_partition(self, use_seq=False, evt_partition=Partition.particle_based):
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     nprocs = comm.Get_size()
@@ -154,6 +160,7 @@ class NuMLFile:
     counts = np.zeros(nprocs, dtype=np.int)
 
     self._use_seq_cnt = not use_seq
+    self._evt_partition = evt_partition
 
     if rank == 0:
       if self._use_seq_cnt:
@@ -162,10 +169,8 @@ class NuMLFile:
         self.read_seq()
 
       num_events = self._num_events
-      # print("num_events=",num_events)
 
-      # print("evt_num_based=",evt_num_based)
-      if evt_num_based == False:
+      if evt_partition == Partition.evt_id_based:
         # Below implements event ID based partitioning, which
         # calculates the start and count of evt.seq id for each process
         _count = num_events // nprocs
@@ -177,18 +182,19 @@ class NuMLFile:
           starts[j] = _count * j + num_events % nprocs
           counts[j] = _count
 
-      else: # event amount based partitioning, which calculates event sizes
-            # across all groups. Note it is possible multiple consecutive rows
-            # a dataset have the same event ID. It is also possible some event
-            # IDs contain no data. First, we accumulate numbers of events
-            # across all groups
+      elif evt_partition == Partition.evt_amnt_based:
+        # event amount based partitioning, which calculates event sizes
+        # across all groups. Note it is possible multiple consecutive rows
+        # a dataset have the same event ID. It is also possible some event
+        # IDs contain no data. First, we accumulate numbers of events
+        # across all groups
         evt_size = np.zeros(num_events, dtype=np.int)
         if self._use_seq_cnt:
           for group, datasets in self._groups:
             seq_cnt = self._whole_seq_cnt[group]
+            num_datasets = len(datasets)
             for i in range(seq_cnt.shape[0]):
-              if evt_size[seq_cnt[i, 0]] < seq_cnt[i, 1]:
-                evt_size[seq_cnt[i, 0]] = seq_cnt[i, 1]
+              evt_size[seq_cnt[i, 0]] += seq_cnt[i, 1] * num_datasets
         else:
           for group, datasets in self._groups:
             seq = self._whole_seq[group]
@@ -198,7 +204,7 @@ class NuMLFile:
         # now we have collected the number of events per event ID across all groups
         total_evt_num = np.sum(evt_size)
         avg_evt_num = total_evt_num // nprocs
-        # print("total_evt_num=",total_evt_num," avg_evt_num=",avg_evt_num)
+        avg_evt = total_evt_num // num_events / 2
 
         # assign ranges of event IDs to individual processes
         acc_evt_num = 0
@@ -206,9 +212,9 @@ class NuMLFile:
         for j in range(num_events):
           if rank_id == nprocs - 1: break
           if acc_evt_num + evt_size[j] >= avg_evt_num:
-            remain_r = avg_evt_num - acc_evt_num
-            remain_l = evt_size[j] - remain_r
-            if remain_r > remain_l:
+            remain_l = avg_evt_num - acc_evt_num
+            remain_r = evt_size[j] - remain_l
+            if remain_l > remain_r and remain_l > avg_evt:
               # assign event j to rank_id
               counts[rank_id] += 1
               acc_evt_num = 0
@@ -222,10 +228,40 @@ class NuMLFile:
           else:
             counts[rank_id] += 1
             acc_evt_num += evt_size[j]
-
-        # if j < num_events: print("rank_id=",rank_id," j=",j," < num_events",num_events)
-        # assign the remaining to the last process
         counts[nprocs-1] += num_events - j
+
+      elif evt_partition == Partition.particle_based:
+        # use event amounts in the particle_table only to partition events
+        seq_cnt = self._whole_seq_cnt['particle_table']
+        total_evt_num = np.sum(seq_cnt[:,1])
+        avg_evt_num = total_evt_num // nprocs
+        avg_evt = total_evt_num // seq_cnt.shape[0] / 2
+
+        starts[0] = seq_cnt[0,0]
+        acc_evt_num = 0
+        rank_id = 0
+        for j in range(seq_cnt.shape[0]):
+          if rank_id == nprocs - 1: break
+          if acc_evt_num + seq_cnt[j,1] >= avg_evt_num:
+            remain_l = avg_evt_num - acc_evt_num
+            remain_r = seq_cnt[j,1] - remain_l
+            # if remain_r > remain_l:
+            if remain_l > remain_r and remain_l > avg_evt:
+              # assign event j to rank_id
+              counts[rank_id] = seq_cnt[j+1, 0] - starts[rank_id]
+              starts[rank_id+1] = seq_cnt[j+1, 0]
+              acc_evt_num = 0
+            else:
+              # assign event j to rank_id+1
+              counts[rank_id] = seq_cnt[j, 0] - starts[rank_id]
+              starts[rank_id+1] = seq_cnt[j, 0]
+              acc_evt_num = seq_cnt[j, 1]
+            # done with rank_id
+            rank_id += 1
+          else:
+            acc_evt_num += seq_cnt[j, 1]
+
+        counts[nprocs-1] = num_events - starts[nprocs-1]
 
     # All processes participate the collective communication, scatter.
     # Root distributes start and count to all processes. Note only root process
