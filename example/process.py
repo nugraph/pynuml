@@ -5,7 +5,7 @@ import getopt
 
 def main(argv):
   profiling     = False
-  use_seq       = False
+  use_seq_cnt   = True
   inputfile     = ""
   outputfile    = ""
   output_h5     = False
@@ -30,7 +30,7 @@ def main(argv):
     elif opt == "-p":   # enable timing profiling and outputs
       profiling = True
     elif opt == "-s":   # use partitioning dataset evt.seq instead of evt.seq_cnt
-      use_seq = True
+      use_seq_cnt = False
     elif opt == "-f":   # overwrite the output file, if exists
       overwrite = True
     elif opt == "-d":   # event partition method.
@@ -52,7 +52,7 @@ def main(argv):
 
   numl.process.hitgraph.process_file(out, inputfile,
                                      l=numl.labels.standard.panoptic_label,
-                                     use_seq=use_seq,
+                                     use_seq_cnt=use_seq_cnt,
                                      evt_part=evt_partition,
                                      profile=profiling)
 
