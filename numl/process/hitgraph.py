@@ -202,7 +202,7 @@ def process_event(event_id, evt, l, e, lower_bnd=20, **edge_args):
   return [[f"r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}", tg.data.Data(**data)]]
 
 def process_file(out, fname, g=process_event, l=standard.semantic_label,
-  e=edges.delaunay, p=None, use_seq=False, use_evt_num_based=True, profile=False):
+  e=edges.delaunay, p=None, use_seq_cnt=True, evt_part=2, profile=False):
 
   comm = MPI.COMM_WORLD
   nprocs = comm.Get_size()
@@ -239,35 +239,21 @@ def process_file(out, fname, g=process_event, l=standard.semantic_label,
   # number of unique event IDs in the input file
   event_id_len = len(f)
 
-  # Calculate the start indices and counts of evt.seq assigned to each process
-  # Note starts and counts are matter only in root process.
-  # use_seq: True  - use event.seq dataset to calculate starts and counts
-  #          False - use event.seq_cnt dataset to calculate starts and counts
-  # evt_num_based: True  - partition event numbers among all processes
-  #                False - partition event IDs among all processes
-  # starts: a numpy array of size nprocs
-  # counts: a numpy array of size nprocs
-  starts, counts = f.data_partition(use_seq=use_seq, evt_num_based=use_evt_num_based)
-
-  if profiling:
-    part_time = MPI.Wtime() - timing
-    comm.Barrier()
-    timing = MPI.Wtime()
-
   # Read all data associated with event IDs assigned to this process
   # Data read is stored as a python nested dictionary, f._data. Keys are group
   # names, values are python dictionaries, each has names of dataset in that
   # group as keys, and values storing dataset subarrays
-  f.read_data(starts, counts, profile=profiling)
+  f.read_data_all(use_seq_cnt, evt_part, profiling)
 
   if profiling:
     read_time = MPI.Wtime() - timing
     comm.Barrier()
     timing = MPI.Wtime()
 
-  # organize the assigned event data into a python list, so data corresponding
-  # to one event ID can be used to create a graph. A graph will be stored as a
-  # Pandas dataframe.
+  # organize the assigned event data into a python list, evt_list, so data
+  # corresponding to one event ID can be used to create a graph. Each element
+  # in evt_list is a Pandas DataFrame. A graph will be created using data
+  # stored in a Pandas dataframe.
   evt_list = f.build_evt()
   # print("len(evt_list)=", len(evt_list))
 
@@ -292,7 +278,7 @@ def process_file(out, fname, g=process_event, l=standard.semantic_label,
       evt_size = 0
       for group in evt_list[i].keys():
         if group != "index":
-          # size in bytes of a Pandas DataFrames
+          # size in bytes of a Pandas DataFrame
           evt_size += sys.getsizeof(evt_list[i][group])
       num_evts += 1
       evt_size_sum += evt_size
@@ -315,7 +301,7 @@ def process_file(out, fname, g=process_event, l=standard.semantic_label,
           sys.stdout.flush()
           MPI.COMM_WORLD.Abort(1)
 
-    # create graphs using data in evt_list[i]
+    # create graphs using data in evt_list[i], a Pandas DataFrame
     # Note an event may create more than one graph
     tmp = g(event_id, evt_list[i], l, e)
 
@@ -349,11 +335,21 @@ def process_file(out, fname, g=process_event, l=standard.semantic_label,
 
     global edep1_t, edep2_t, hit_merge_t, torch_t, plane_t, label_t, edge_t
 
-    total_t = np.array([open_time, part_time, read_time, build_list_time, graph_time, write_time, total_time, edep1_t, edep2_t, label_t, hit_merge_t, plane_t, torch_t, edge_t])
-    max_total_t = np.zeros(14)
-    comm.Reduce(total_t, max_total_t, op=MPI.MAX, root=0)
-    min_total_t = np.zeros(14)
-    comm.Reduce(total_t, min_total_t, op=MPI.MIN, root=0)
+    my_t = np.array([open_time, read_time, build_list_time,
+                     graph_time, write_time, total_time, edep1_t, edep2_t,
+                     label_t, hit_merge_t, plane_t, torch_t, edge_t])
+    all_t  = None
+    if rank == 0:
+      all_t  = np.empty([nprocs, 14], dtype=np.double)
+
+    # root process gathers all timings from all processes
+    comm.Gather(my_t, all_t, root=0)
+
+    if rank == 0:
+      # transport to 14 x nprocs
+      all_t = all_t.transpose(1, 0)
+      # sort along each row in order to get MAX, MIN, and Median
+      all_t = np.sort(all_t)
 
     local_counts  = np.empty(6, dtype=np.int64)
     global_counts = np.empty(6, dtype=np.int64)
@@ -397,65 +393,97 @@ def process_file(out, fname, g=process_event, l=standard.semantic_label,
     grp_size_sum = global_counts[3]
 
     if rank == 0:
-      print("---- Timing break down of graph creation phase (in seconds) ------")
-      print("edep grouping               time MAX=%8.2f  MIN=%8.2f" % (max_total_t[7], min_total_t[7]))
-      print("edep merge                  time MAX=%8.2f  MIN=%8.2f" % (max_total_t[8], min_total_t[8]))
-      if l == numl.labels.standard.panoptic_label:
-        print("labelling standard          time MAX=%8.2f  MIN=%8.2f" % (max_total_t[9], min_total_t[9]))
-      elif l == numl.labels.standard.semantic_label:
-        print("labelling standard semantic time MAX=%8.2f  MIN=%8.2f" % (max_total_t[9], min_total_t[9]))
-      elif l == numl.labels.standard.instance_label:
-        print("labelling standard instance time MAX=%8.2f  MIN=%8.2f" % (max_total_t[9], min_total_t[9]))
-      elif l == numl.labels.ccqe.semantic_label:
-        print("labelling ccqe semantic     time MAX=%8.2f  MIN=%8.2f" % (max_total_t[9], min_total_t[9]))
-      elif l == numl.labels.ccqe.edge_label:
-        print("labelling ccqe              time MAX=%8.2f  MIN=%8.2f" % (max_total_t[9], min_total_t[9]))
-      else:
-        print("labelling                   time MAX=%8.2f  MIN=%8.2f" % (max_total_t[9], min_total_t[9]))
-      print("hit_table merge             time MAX=%8.2f  MIN=%8.2f" % (max_total_t[10], min_total_t[10]))
-      print("plane build                 time MAX=%8.2f  MIN=%8.2f" % (max_total_t[11], min_total_t[11]))
-      print("torch_geometric             time MAX=%8.2f  MIN=%8.2f" % (max_total_t[12], min_total_t[12]))
-      if e == numl.graph.edges.delaunay:
-        print("edge indexing delaunay      time MAX=%8.2f  MIN=%8.2f" % (max_total_t[13], min_total_t[13]))
-      elif e == numl.graph.edges.radius:
-        print("edge indexing radius        time MAX=%8.2f  MIN=%8.2f" % (max_total_t[13], min_total_t[13]))
-      elif e == numl.graph.edges.knn:
-        print("edge indexing knn           time MAX=%8.2f  MIN=%8.2f" % (max_total_t[13], min_total_t[13]))
-      elif e == numl.graph.edges.window:
-        print("edge indexing window        time MAX=%8.2f  MIN=%8.2f" % (max_total_t[13], min_total_t[13]))
-      else:
-        print("edge indexing               time MAX=%8.2f  MIN=%8.2f" % (max_total_t[13], min_total_t[13]))
-      print("(MAX and MIN timings are among %d processes)" % nprocs)
       print("------------------------------------------------------------------")
       print("Number of MPI processes          =%8d" % nprocs)
       print("Total no. event IDs              =%8d" % event_id_len)
       print("Total no. non-empty events       =%8d" % num_evts)
       print("Size of all events               =%10.1f MiB" % (evt_size_sum/1048576.0))
-      if use_evt_num_based:
-        print("== Use event data amount based data partitioning strategy ==")
-      else:
+      if evt_part == 0:
         print("== Use event ID based data partitioning strategy ==")
-      if use_seq:
-        print("== Use dataset 'event_id.seq' to calculate data partitioning ==")
-      else:
+      elif evt_part == 1:
+        print("== Use event data amount based data partitioning strategy ==")
+      elif evt_part == 2:
+        print("== Use events in particle table to partition ==")
+      if use_seq_cnt:
         print("== Use dataset 'event_id.seq_cnt' to calculate data partitioning ==")
-      print("Local no. events assigned     MAX=%8d   MIN=%8d   AVG=%10.1f" % (num_evts_max, num_evts_min,num_evts/nprocs))
-      print("Local indiv event size in KiB MAX=%10.1f MIN=%10.1f AVG=%10.1f" % (evt_size_max/1024.0, evt_size_min/1024.0, evt_size_sum/1024.0/num_evts))
-      print("Local sum   event size in MiB MAX=%10.1f MIN=%10.1f AVG=%10.1f" % (evt_size_sum_max/1048576.0, evt_size_sum_min/1048576.0, evt_size_sum/1048576.0/nprocs))
-
+      else:
+        print("== Use dataset 'event_id.seq' to calculate data partitioning ==")
+      print("Local no. events assigned     MAX=%8d   MIN=%8d   AVG=%10.1f"
+            % (num_evts_max, num_evts_min,num_evts/nprocs))
+      print("Local indiv event size in KiB MAX=%10.1f MIN=%10.1f AVG=%10.1f"
+            % (evt_size_max/1024.0, evt_size_min/1024.0, evt_size_sum/1024.0/num_evts))
+      print("Local sum   event size in MiB MAX=%10.1f MIN=%10.1f AVG=%10.1f"
+            % (evt_size_sum_max/1048576.0, evt_size_sum_min/1048576.0, evt_size_sum/1048576.0/nprocs))
+      print("(MAX and MIN timings are among %d processes)" % nprocs)
+      print("------------------------------------------------------------------")
       print("Total no.  of graphs             =%8d" % num_grps)
       print("Size of all graphs               =%10.1f MiB" % (grp_size_sum/1048576.0))
-      print("Local no. graphs created      MAX=%8d   MIN=%8d   AVG=%10.1f" % (num_grps_max, num_grps_min, num_grps/nprocs))
-      print("Local indiv graph size in KiB MAX=%10.1f MIN=%10.1f AVG=%10.1f" % (grp_size_max/1024.0, grp_size_min/1024.0,grp_size_sum/1024.0/num_grps))
-      print("Local sum   graph size in MiB MAX=%10.1f MIN=%10.1f AVG=%10.1f" % (grp_size_sum_max/1048576.0, grp_size_sum_min/1048576.0, grp_size_sum/1048576.0/nprocs))
+      print("Local no. graphs created      MAX=%8d   MIN=%8d   AVG=%10.1f"
+            % (num_grps_max, num_grps_min, num_grps/nprocs))
+      print("Local indiv graph size in KiB MAX=%10.1f MIN=%10.1f AVG=%10.1f"
+            % (grp_size_max/1024.0, grp_size_min/1024.0,grp_size_sum/1024.0/num_grps))
+      print("Local sum   graph size in MiB MAX=%10.1f MIN=%10.1f AVG=%10.1f"
+            % (grp_size_sum_max/1048576.0, grp_size_sum_min/1048576.0, grp_size_sum/1048576.0/nprocs))
       print("(MAX and MIN timings are among %d processes)" % nprocs)
-
+      print("---- Timing break down of graph creation phase (in seconds) ------")
+      sort_t = all_t[6]
+      print("edep grouping               time ", end='')
+      print("MAX=%8.2f  MIN=%8.2f  MID=%8.2f" % (sort_t[nprocs-1], sort_t[0], sort_t[nprocs//2]))
+      sort_t = all_t[7]
+      print("edep merge                  time ", end='')
+      print("MAX=%8.2f  MIN=%8.2f  MID=%8.2f" % (sort_t[nprocs-1], sort_t[0], sort_t[nprocs//2]))
+      sort_t = all_t[8]
+      if l == numl.labels.standard.panoptic_label:
+        print("labelling standard          time ", end='')
+      elif l == numl.labels.standard.semantic_label:
+        print("labelling standard semantic time ", end='')
+      elif l == numl.labels.standard.instance_label:
+        print("labelling standard instance time ", end='')
+      elif l == numl.labels.ccqe.semantic_label:
+        print("labelling ccqe semantic     time ", end='')
+      elif l == numl.labels.ccqe.edge_label:
+        print("labelling ccqe              time ", end='')
+      else:
+        print("labelling                   time ", end='')
+      print("MAX=%8.2f  MIN=%8.2f  MID=%8.2f" % (sort_t[nprocs-1], sort_t[0], sort_t[nprocs//2]))
+      sort_t = all_t[9]
+      print("hit_table merge             time ", end='')
+      print("MAX=%8.2f  MIN=%8.2f  MID=%8.2f" % (sort_t[nprocs-1], sort_t[0], sort_t[nprocs//2]))
+      sort_t = all_t[10]
+      print("plane build                 time ", end='')
+      print("MAX=%8.2f  MIN=%8.2f  MID=%8.2f" % (sort_t[nprocs-1], sort_t[0], sort_t[nprocs//2]))
+      sort_t = all_t[11]
+      print("torch_geometric             time ", end='')
+      print("MAX=%8.2f  MIN=%8.2f  MID=%8.2f" % (sort_t[nprocs-1], sort_t[0], sort_t[nprocs//2]))
+      sort_t = all_t[12]
+      if e == numl.graph.edges.delaunay:
+        print("edge indexing delaunay      time ", end='')
+      elif e == numl.graph.edges.radius:
+        print("edge indexing radius        time ", end='')
+      elif e == numl.graph.edges.knn:
+        print("edge indexing knn           time ", end='')
+      elif e == numl.graph.edges.window:
+        print("edge indexing window        time ", end='')
+      else:
+        print("edge indexing               time ", end='')
+      print("MAX=%8.2f  MIN=%8.2f  MID=%8.2f" % (sort_t[nprocs-1], sort_t[0], sort_t[nprocs//2]))
       print("---- Top-level timing breakdown (in seconds) ---------------------")
-      print("file open       time MAX=%8.2f  MIN=%8.2f" % (max_total_t[0], min_total_t[0]))
-      print("event partition time MAX=%8.2f  MIN=%8.2f" % (max_total_t[1], min_total_t[1]))
-      print("read from file  time MAX=%8.2f  MIN=%8.2f" % (max_total_t[2], min_total_t[2]))
-      print("build dataframe time MAX=%8.2f  MIN=%8.2f" % (max_total_t[3], min_total_t[3]))
-      print("graph creation  time MAX=%8.2f  MIN=%8.2f" % (max_total_t[4], min_total_t[4]))
-      print("write to files  time MAX=%8.2f  MIN=%8.2f" % (max_total_t[5], min_total_t[5]))
-      print("total           time MAX=%8.2f  MIN=%8.2f" % (max_total_t[6], min_total_t[6]))
+      sort_t = all_t[0]
+      print("file open                   time ", end='')
+      print("MAX=%8.2f  MIN=%8.2f  MID=%8.2f" % (sort_t[nprocs-1], sort_t[0], sort_t[nprocs//2]))
+      sort_t = all_t[1]
+      print("read from file              time ", end='')
+      print("MAX=%8.2f  MIN=%8.2f  MID=%8.2f" % (sort_t[nprocs-1], sort_t[0], sort_t[nprocs//2]))
+      sort_t = all_t[2]
+      print("build dataframe             time ", end='')
+      print("MAX=%8.2f  MIN=%8.2f  MID=%8.2f" % (sort_t[nprocs-1], sort_t[0], sort_t[nprocs//2]))
+      sort_t = all_t[3]
+      print("graph creation              time ", end='')
+      print("MAX=%8.2f  MIN=%8.2f  MID=%8.2f" % (sort_t[nprocs-1], sort_t[0], sort_t[nprocs//2]))
+      sort_t = all_t[4]
+      print("write to files              time ", end='')
+      print("MAX=%8.2f  MIN=%8.2f  MID=%8.2f" % (sort_t[nprocs-1], sort_t[0], sort_t[nprocs//2]))
+      sort_t = all_t[5]
+      print("total                       time ", end='')
+      print("MAX=%8.2f  MIN=%8.2f  MID=%8.2f" % (sort_t[nprocs-1], sort_t[0], sort_t[nprocs//2]))
       print("(MAX and MIN timings are among %d processes)" % nprocs)
