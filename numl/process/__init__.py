@@ -1,2 +1,2 @@
-__all__ = [ "hitgraph", "spmap" ]
+__all__ = [ "hitgraph" ]
 from . import *

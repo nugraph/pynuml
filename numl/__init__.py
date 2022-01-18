@@ -1,1 +1,2 @@
-from . import core, process, graph, plot
+__all__ = [ "core", "labels", "graph", "process" ]
+from . import *
