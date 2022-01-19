@@ -1,4 +1,4 @@
-def window(data, wire_distance=3, time_distance=3):
+def window(data, wire_distance=1, time_distance=1):
   '''Form graph edges forming edges in a given window around each node'''
   import torch, pandas as pd
 
@@ -15,13 +15,13 @@ def delaunay(data):
   return tg.transforms.FaceToEdge()(tg.transforms.Delaunay()(data))
 
 
-def radius(data, r=16, max_num_neighbours=32):
+def radius(data, r=2, max_num_neighbours=8):
   '''Form graph edges using Radius Graph transformation'''
   import torch, torch_geometric as tg
   return tg.transforms.RadiusGraph(r=r, max_num_neighbors=max_num_neighbours)(data)
 
 
-def knn(data, k=6):
+def knn(data, k=8):
   '''Form graph edges using KNN Graph transformation'''
   import torch, torch_geometric as tg
   return tg.transforms.KNNGraph(k=k)(data)
