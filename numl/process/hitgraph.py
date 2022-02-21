@@ -148,7 +148,7 @@ def process_event(event_id, evt, l, e, lower_bnd=20, **edge_args):
 
   planes = [ "_u", "_v", "_y" ]
   evt_sp = evt["spacepoint_table"]
-  data = { "n_sp": evt_sp.shape[1] }
+  data = { "n_sp": evt_sp.shape[0] }
 
   # draw graph edges
   for p, plane in evt_hit.groupby("local_plane"):
