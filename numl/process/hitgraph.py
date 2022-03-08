@@ -148,7 +148,12 @@ def process_event(event_id, evt, l, e, lower_bnd=20, **edge_args):
 
   planes = [ "_u", "_v", "_y" ]
   evt_sp = evt["spacepoint_table"]
-  data = { "n_sp": evt_sp.shape[0] }
+  sim_hits = evt_hit["hit_id"].tolist()
+  evt_sp_slimmed = evt_sp.loc[(evt_sp['hit_id_u'].isin(sim_hits + [-1]))
+                              & (evt_sp['hit_id_v'].isin(sim_hits + [-1]))
+                              & (evt_sp['hit_id_y'].isin(sim_hits + [-1]))][['hit_id_u', 'hit_id_v', 'hit_id_y']]
+  evt_sp_slimmed = evt_sp_slimmed[evt_sp_slimmed.ne(-1).sum(axis=1) >= 2]
+  data = { "n_sp": evt_sp_slimmed.shape[0] }
 
   # draw graph edges
   for p, plane in evt_hit.groupby("local_plane"):
@@ -158,12 +163,10 @@ def process_event(event_id, evt, l, e, lower_bnd=20, **edge_args):
 
     # build 3d edges
     suffix = planes[p]
-    plane_sp = evt_sp.rename(columns={"hit_id"+suffix: "hit_id"}).reset_index()
-    plane_sp = plane_sp[(plane_sp.hit_id != -1)]
-    k3d = ["index","hit_id"]
-    edges_3d = pd.merge(plane_sp[k3d], plane[(plane.hit_id != -1)][k3d], on="hit_id", how="inner", suffixes=["_3d", "_2d"])
-    blah = edges_3d[["index_2d", "index_3d"]].to_numpy()
-
+    edges_3d = evt_sp_slimmed.reset_index()[["index",f"hit_id{suffix}"]]
+    edges_3d.columns = ["index_3d","index_2d"]
+    blah = edges_3d.loc[edges_3d["index_2d"] != -1][["index_2d", "index_3d"]].to_numpy()
+   
     if profiling:
       end_t = MPI.Wtime()
       plane_t += end_t - start_t
