@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import pandas as pd, torch, torch_geometric as tg
 from ..core.file import NuMLFile
 from ..labels import *
@@ -21,25 +23,14 @@ def process_event_singleplane(event_id, evt, l, e, lower_bnd=20, **edge_args):
   """Process an event into graphs"""
 
   global edep1_t, edep2_t, hit_merge_t, torch_t, plane_t, label_t, edge_t
-  global profiling
-  if profiling:
-    start_t = MPI.Wtime()
 
   # get energy depositions, find max contributing particle, and ignore any evt_hits with no truth
   evt_edep = evt["edep_table"]
   evt_edep = evt_edep.sort_values(by=['energy_fraction'], ascending=False, kind='mergesort').drop_duplicates('hit_id')
 
-  if profiling:
-    end_t = MPI.Wtime()
-    edep1_t += end_t - start_t
-    start_t = end_t
 
   evt_hit = evt_edep.merge(evt["hit_table"], on="hit_id", how="inner").drop("energy_fraction", axis=1)
 
-  if profiling:
-    end_t = MPI.Wtime()
-    edep2_t += end_t - start_t
-    start_t = end_t
 
   # skip events with fewer than lower_bnd simulated hits in any plane
   for i in range(3):
@@ -48,18 +39,8 @@ def process_event_singleplane(event_id, evt, l, e, lower_bnd=20, **edge_args):
   # get labels for each evt_particle
   evt_part = l(evt["particle_table"])
 
-  if profiling:
-    end_t = MPI.Wtime()
-    label_t += end_t - start_t
-    start_t = end_t
-
   # join the dataframes to transform evt_particle labels into hit labels
   evt_hit = evt_hit.merge(evt_part.drop(["parent_id", "type"], axis=1), on="g4_id", how="inner")
-
-  if profiling:
-    end_t = MPI.Wtime()
-    hit_merge_t += end_t - start_t
-    start_t = end_t
 
   # draw graph edges
   ret = []
@@ -72,11 +53,6 @@ def process_event_singleplane(event_id, evt, l, e, lower_bnd=20, **edge_args):
     node_feats = ["global_plane", "global_wire", "global_time", "tpc",
       "local_plane", "local_wire", "local_time", "integral", "rms"]
 
-    if profiling:
-      end_t = MPI.Wtime()
-      plane_t += end_t - start_t
-      start_t = end_t
-
     data = tg.data.Data(
       x=torch.tensor(plane[node_feats].values).float(),
       pos=pos,
@@ -86,18 +62,8 @@ def process_event_singleplane(event_id, evt, l, e, lower_bnd=20, **edge_args):
     if "instance_label" in plane.keys():
       data.y_i = torch.tensor(plane["instance_label"].values).long()
 
-    if profiling:
-      end_t = MPI.Wtime()
-      torch_t += end_t - start_t
-      start_t = end_t
-
     data = e(data, **edge_args)
     ret.append([f"r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}_p{p}", data])
-
-    if profiling:
-      end_t = MPI.Wtime()
-      edge_t += end_t - start_t
-      start_t = end_t
 
   return ret
 
@@ -106,25 +72,20 @@ def process_event(event_id, evt, l, e, lower_bnd=20, **edge_args):
   # skip any events with no simulated hits
 
   global edep1_t, edep2_t, hit_merge_t, torch_t, plane_t, label_t, edge_t
-  global profiling
-  if profiling:
-    start_t = MPI.Wtime()
 
   # get energy depositions, find max contributing particle, and ignore any hits with no truth
   evt_edep = evt["edep_table"]
   evt_edep = evt_edep.sort_values(by=['energy_fraction'], ascending=False, kind='mergesort').drop_duplicates('hit_id')
 
-  if profiling:
-    end_t = MPI.Wtime()
-    edep1_t += end_t - start_t
-    start_t = end_t
-
-  evt_hit = evt_edep.merge(evt["hit_table"], on="hit_id", how="inner").drop("energy_fraction", axis=1)
-
-  if profiling:
-    end_t = MPI.Wtime()
-    edep2_t += end_t - start_t
-    start_t = end_t
+  evt_hit = evt_edep.merge(evt["hit_table"], on="hit_id", how="right")
+  
+  pd.set_option('display.max_columns',None)
+  print("proportion of energy_fraction not-null:",len(evt_hit.loc[evt_hit['energy_fraction'].notnull(),'energy_fraction'])," out of ", len(evt_hit['energy_fraction']))
+  evt_hit['is_cosmic'] = False
+  evt_hit.loc[evt_hit['energy_fraction'].isnull(), 'is_cosmic'] = True
+  print("proportion of correctly classfied not-cosmic:", len(evt_hit.loc[evt_hit['energy_fraction'].notnull(),'is_cosmic']==False)," out of ",len(evt_hit.loc[evt_hit['energy_fraction'].notnull(),'is_cosmic']))
+  evt_hit = evt_hit.drop("energy_fraction", axis=1)
+  print(evt_hit.iloc[::5,:])
 
   # skip events with fewer than lower_bnd simulated hits in any plane
   for i in range(3):
@@ -133,28 +94,19 @@ def process_event(event_id, evt, l, e, lower_bnd=20, **edge_args):
   # get labels for each particle
   evt_part = l(evt["particle_table"])
 
-  if profiling:
-    end_t = MPI.Wtime()
-    label_t += end_t - start_t
-    start_t = end_t
-
   # join the dataframes to transform particle labels into hit labels
   evt_hit = evt_hit.merge(evt_part, on="g4_id", how="inner")
-
-  if profiling:
-    end_t = MPI.Wtime()
-    hit_merge_t += end_t - start_t
-    start_t = end_t
 
   planes = [ "_u", "_v", "_y" ]
   evt_sp = evt["spacepoint_table"]
   sim_hits = evt_hit["hit_id"].tolist()
-  evt_sp_slimmed = evt_sp.loc[(evt_sp['hit_id_u'].isin(sim_hits + [-1]))
-                              & (evt_sp['hit_id_v'].isin(sim_hits + [-1]))
-                              & (evt_sp['hit_id_y'].isin(sim_hits + [-1]))][['hit_id_u', 'hit_id_v', 'hit_id_y']]
-  evt_sp_slimmed = evt_sp_slimmed[evt_sp_slimmed.ne(-1).sum(axis=1) >= 2].reset_index(drop=True)
-  data = { "n_sp": evt_sp_slimmed.shape[0] }
-
+  #UNMASK COSMIC
+  #evt_sp_slimmed = evt_sp.loc[(evt_sp['hit_id_u'].isin(sim_hits + [-1]))
+  #                            & (evt_sp['hit_id_v'].isin(sim_hits + [-1]))
+  #                            & (evt_sp['hit_id_y'].isin(sim_hits + [-1]))][['hit_id_u', 'hit_id_v', 'hit_id_y']]
+  #evt_sp_slimmed = evt_sp_slimmed[evt_sp_slimmed.ne(-1).sum(axis=1) >= 2].reset_index(drop=True)
+  data = { "n_sp": evt_sp.shape[0] }
+  
   # draw graph edges
   for p, plane in evt_hit.groupby("local_plane"):
 
@@ -163,16 +115,11 @@ def process_event(event_id, evt, l, e, lower_bnd=20, **edge_args):
 
     # build 3d edges
     suffix = planes[p]
-    plane_sp = evt_sp_slimmed.rename(columns={"hit_id"+suffix: "hit_id"}).reset_index()
+    plane_sp = evt_sp.rename(columns={"hit_id"+suffix: "hit_id"}).reset_index()
     plane_sp = plane_sp[(plane_sp.hit_id != -1)]
     k3d = ["index","hit_id"]
     edges_3d = pd.merge(plane_sp[k3d], plane[(plane.hit_id != -1)][k3d], on="hit_id", how="inner", suffixes=["_3d", "_2d"])
     blah = edges_3d[["index_2d", "index_3d"]].to_numpy()
-   
-    if profiling:
-      end_t = MPI.Wtime()
-      plane_t += end_t - start_t
-      start_t = end_t
 
     # Save to file
     tmp = tg.data.Data(
@@ -186,19 +133,9 @@ def process_event(event_id, evt, l, e, lower_bnd=20, **edge_args):
     if "instance_label" in plane.keys():
       data["y_i"+suffix] = torch.tensor(plane["instance_label"].to_numpy()).long()
 
-    if profiling:
-      end_t = MPI.Wtime()
-      torch_t += end_t - start_t
-      start_t = end_t
-
     tmp = e(tmp, **edge_args)
     data["edge_index"+suffix] = tmp.edge_index
     data["edge_index_3d"+suffix] = torch.tensor(blah).transpose(0, 1).long()
-
-    if profiling:
-      end_t = MPI.Wtime()
-      edge_t += end_t - start_t
-      start_t = end_t
 
   if data["y_s_u"].max() > 7 or data["y_s_v"].max() > 7 or data["y_s_y"].max() > 7:
     print("\n  error: hit with invisible label found! skipping event\n")
@@ -213,13 +150,6 @@ def process_file(out, fname, g=process_event, l=standard.semantic_label,
   nprocs = comm.Get_size()
   rank = comm.Get_rank()
 
-  global profiling
-  profiling = profile
-  if profiling:
-    comm.Barrier()
-    start_t = MPI.Wtime()
-    timing = start_t
-
   """Process all events in a file into graphs"""
   if rank == 0:
     print("------------------------------------------------------------------")
@@ -229,11 +159,6 @@ def process_file(out, fname, g=process_event, l=standard.semantic_label,
 
   # open input file and read dataset "/event_table/event_id.seq_cnt"
   f = NuMLFile(fname)
-
-  if profiling:
-    open_time = MPI.Wtime() - timing
-    comm.Barrier()
-    timing = MPI.Wtime()
 
   # only use the following groups and datasets in them
   f.add_group("hit_table")
@@ -250,11 +175,6 @@ def process_file(out, fname, g=process_event, l=standard.semantic_label,
   # group as keys, and values storing dataset subarrays
   f.read_data_all(use_seq_cnt, evt_part, profiling)
 
-  if profiling:
-    read_time = MPI.Wtime() - timing
-    comm.Barrier()
-    timing = MPI.Wtime()
-
   # organize the assigned event data into a python list, evt_list, so data
   # corresponding to one event ID can be used to create a graph. Each element
   # in evt_list is a Pandas DataFrame. A graph will be created using data
@@ -262,33 +182,8 @@ def process_file(out, fname, g=process_event, l=standard.semantic_label,
   evt_list = f.build_evt()
   # print("len(evt_list)=", len(evt_list))
 
-  if profiling:
-    build_list_time = MPI.Wtime() - timing
-    comm.Barrier()
-    write_time   = 0
-    graph_time   = 0
-    num_evts     = 0            # no. events assigned to this process
-    evt_size_max = 0            # max event size assigned to this process
-    evt_size_min = sys.maxsize  # min event size assigned to this process
-    evt_size_sum = 0            # sum of event sizes assigned to this process
-    num_grps     = 0            # no. graphs created by this process
-    grp_size_max = 0            # max graph size created by this process
-    grp_size_min = sys.maxsize  # min graph size created by this process
-    grp_size_sum = 0            # sum of graph sizes created by this process
-
   # Iterate through event IDs, construct graphs and save them in files
   for i in range(len(evt_list)):
-    if profiling:
-      timing = MPI.Wtime()
-      evt_size = 0
-      for group in evt_list[i].keys():
-        if group != "index":
-          # size in bytes of a Pandas DataFrame
-          evt_size += sys.getsizeof(evt_list[i][group])
-      num_evts += 1
-      evt_size_sum += evt_size
-      if evt_size > evt_size_max : evt_size_max = evt_size
-      if evt_size < evt_size_min : evt_size_min = evt_size
 
     # retrieve event sequence ID
     idx = evt_list[i]["index"]
@@ -310,10 +205,6 @@ def process_file(out, fname, g=process_event, l=standard.semantic_label,
     # Note an event may create more than one graph
     tmp = g(event_id, evt_list[i], l, e)
 
-    if profiling:
-      graph_time += MPI.Wtime() - timing
-      timing = MPI.Wtime()
-
     if tmp is not None:
       for name, data in tmp:
         # print("saving", name)
@@ -331,12 +222,6 @@ def process_file(out, fname, g=process_event, l=standard.semantic_label,
           grp_size_sum += grp_size
           if grp_size > grp_size_max : grp_size_max = grp_size
           if grp_size < grp_size_min : grp_size_min = grp_size
-
-    if profiling:
-      write_time += MPI.Wtime() - timing
-
-  if profiling:
-    total_time = MPI.Wtime() - start_t
 
     global edep1_t, edep2_t, hit_merge_t, torch_t, plane_t, label_t, edge_t
 
