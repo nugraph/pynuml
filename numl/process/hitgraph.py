@@ -121,12 +121,12 @@ def process_event(event_id, evt, l, e, lower_bnd=20, **edge_args):
 
   evt_hit = evt_edep.merge(evt["hit_table"], on="hit_id", how="right")
   pd.set_option('display.max_columns',None)
-  print("proportion of energy_fraction not-null:",len(evt_hit.loc[evt_hit['energy_fraction'].notnull(),'energy_fraction'])," out of ", len(evt_hit['energy_fraction']))
+  #print("proportion of energy_fraction not-null:",len(evt_hit.loc[evt_hit['energy_fraction'].notnull(),'energy_fraction'])," out of ", len(evt_hit['energy_fraction']))
   evt_hit['is_cosmic'] = False
   evt_hit.loc[evt_hit['energy_fraction'].isnull(), 'is_cosmic'] = True
-  print("proportion of correctly classfied not-cosmic:", len(evt_hit.loc[evt_hit['energy_fraction'].notnull(),'is_cosmic']==False)," out of ",len(evt_hit.loc[evt_hit['energy_fraction'].notnull(),'is_cosmic']))
+  #print("proportion of correctly classfied not-cosmic:", len(evt_hit.loc[evt_hit['energy_fraction'].notnull(),'is_cosmic']==False)," out of ",len(evt_hit.loc[evt_hit['energy_fraction'].notnull(),'is_cosmic']))
   evt_hit = evt_hit.drop("energy_fraction", axis=1)
-  print(evt_hit.iloc[::5,:])
+  #print(evt_hit.iloc[::5,:])
 
   if profiling:
     end_t = MPI.Wtime()
@@ -134,8 +134,9 @@ def process_event(event_id, evt, l, e, lower_bnd=20, **edge_args):
     start_t = end_t
 
   # skip events with fewer than lower_bnd simulated hits in any plane
-  for i in range(3):
-    if (evt_hit.global_plane==i).sum() < lower_bnd: return
+  for i in range(3): 
+    #filter out cosmics
+    if (evt_hit[-evt_hit['is_cosmic']].global_plane==i).sum() < lower_bnd: return
 
   # get labels for each particle
   evt_part = l(evt["particle_table"])
