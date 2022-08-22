@@ -36,13 +36,9 @@ def process_event(event_id, evt, l, e, lower_bnd=20, **edge_args):
     start_t = end_t
 
   evt_hit = evt_edep.merge(evt["hit_table"], on="hit_id", how="right")
-  pd.set_option('display.max_columns',None)
-  #print("proportion of energy_fraction not-null:",len(evt_hit.loc[evt_hit['energy_fraction'].notnull(),'energy_fraction'])," out of ", len(evt_hit['energy_fraction']))
   evt_hit['is_cosmic'] = False
   evt_hit.loc[evt_hit['energy_fraction'].isnull(), 'is_cosmic'] = True
-  #print("proportion of correctly classfied not-cosmic:", len(evt_hit.loc[evt_hit['energy_fraction'].notnull(),'is_cosmic']==False)," out of ",len(evt_hit.loc[evt_hit['energy_fraction'].notnull(),'is_cosmic']))
   evt_hit = evt_hit.drop("energy_fraction", axis=1)
-  #print(evt_hit.iloc[::5,:])
 
   if profiling:
     end_t = MPI.Wtime()
@@ -52,7 +48,7 @@ def process_event(event_id, evt, l, e, lower_bnd=20, **edge_args):
   # skip events with fewer than lower_bnd simulated hits in any plane
   for i in range(3): 
     #filter out cosmics
-    if (evt_hit[-evt_hit['is_cosmic']].global_plane==i).sum() < lower_bnd: return
+    if (evt_hit[~evt_hit['is_cosmic']].global_plane==i).sum() < lower_bnd: return
 
   # get labels for each particle
   evt_part = l(evt["particle_table"])
@@ -64,8 +60,6 @@ def process_event(event_id, evt, l, e, lower_bnd=20, **edge_args):
 
   # join the dataframes to transform particle labels into hit labels
   evt_hit = evt_hit.merge(evt_part, on="g4_id", how="left")
-  print(evt_hit.iloc[::5,:])  
-  #print("cosmic out of all: ",(~evt_hit['is_cosmic']).sum(),"out of ", len(evt_hit['g4_id']))
 
   if profiling:
     end_t = MPI.Wtime()
@@ -75,11 +69,6 @@ def process_event(event_id, evt, l, e, lower_bnd=20, **edge_args):
   planes = [ "_u", "_v", "_y" ]
   evt_sp = evt["spacepoint_table"]
   sim_hits = evt_hit["hit_id"].tolist()
-  #UNMASK COSMIC
-  #evt_sp_slimmed = evt_sp.loc[(evt_sp['hit_id_u'].isin(sim_hits + [-1]))
-  #                            & (evt_sp['hit_id_v'].isin(sim_hits + [-1]))
-  #                            & (evt_sp['hit_id_y'].isin(sim_hits + [-1]))][['hit_id_u', 'hit_id_v', 'hit_id_y']]
-  #evt_sp_slimmed = evt_sp_slimmed[evt_sp_slimmed.ne(-1).sum(axis=1) >= 2].reset_index(drop=True)
   data = { "n_sp": evt_sp.shape[0] }
 
   # draw graph edges
@@ -108,11 +97,11 @@ def process_event(event_id, evt, l, e, lower_bnd=20, **edge_args):
     node_feats = ["global_plane", "global_wire", "global_time", "tpc",
       "local_plane", "local_wire", "local_time", "integral", "rms"]
     data["x"+suffix] = torch.tensor(plane[node_feats].to_numpy()).float()
+    data["y_c"+suffix] = torch.tensor(plane["is_cosmic"].to_numpy()).bool()
     if "semantic_label" in plane.keys():
-      data["y_s"+suffix] = torch.tensor(plane["semantic_label"].to_numpy()).long()
+      data["y_s"+suffix] = torch.tensor(plane["semantic_label"].to_numpy()).long()[~data["y_c"+suffix]]
     if "instance_label" in plane.keys():
-      data["y_i"+suffix] = torch.tensor(plane["instance_label"].to_numpy()).long()
-    data["y_c"+suffix] = torch.tensor(plane["is_cosmic"].to_numpy()).long()
+      data["y_i"+suffix] = torch.tensor(plane["instance_label"].to_numpy()).long()[~data["y_c"+suffix]]
 
     if profiling:
       end_t = MPI.Wtime()
@@ -132,18 +121,10 @@ def process_event(event_id, evt, l, e, lower_bnd=20, **edge_args):
     print("\n  error: hit with invisible label found! skipping event\n")
     return []
 
-  data["y_s_u"] = data["y_s_u"][data["y_c_u"] == False]
-  data["y_i_u"] = data["y_i_u"][data["y_c_u"] == False]
-  data["y_s_v"] = data["y_s_v"][data["y_c_v"] == False]
-  data["y_i_v"] = data["y_i_v"][data["y_c_v"] == False]
-  data["y_s_y"] = data["y_s_y"][data["y_c_y"] == False]
-  data["y_i_y"] = data["y_i_y"][data["y_c_y"] == False] 
-  #print(list(data["y_c_u"]))
-
   return [[f"r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}", tg.data.Data(**data)]]
 
 def process_file(out, fname, g=process_event, l=standard.semantic_label,
-  e=edges.delaunay, p=None, use_seq_cnt=True, evt_part=2, profile=False):
+  e=edges.delaunay, p=None, overwrite=True, use_seq_cnt=True, evt_part=2, profile=False):
 
   comm = MPI.COMM_WORLD
   nprocs = comm.Get_size()
