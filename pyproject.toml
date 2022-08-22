@@ -1,8 +1,25 @@
 [build-system]
-requires = [
-  "setuptools>=42",
-  "wheel",
-  "pandas>=1.2.0",
-  "h5py"
+requires = ['setuptools']
+build-backend = 'setuptools.build_meta'
+
+[project]
+name = 'pynuml'
+version = '0.1.0'
+description = 'Standardised ML input processing for particle physics'
+readme = 'README.md'
+requires-python = '>=3.10'
+keywords = ['physics', 'neutrino', 'gnn', 'hdf5']
+license = {text = 'MIT License'}
+classifiers = [
+    'Intended Audience :: Science/Research',
+    'License :: OSI Approved :: MIT License',
+    'Programming Language :: Python :: 3',
+    'Programming Language :: Python :: 3.10',
 ]
-build-backend = "setuptools.build_meta"
+dependencies = [
+    'h5py',
+    'mpi4py',
+    'pandas',
+    'torch>=1.12.1',
+    'torch-geometric>=2.1.0',
+]

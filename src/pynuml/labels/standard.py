@@ -14,7 +14,7 @@ class label(enum.Enum):
   diffuse = 7
   invisible = 8
 
-def panoptic_label(part):
+def standard(part):
   def walk(part, particles, depth, sl, il):
     def s(part, particles):
       import particle  # does this need to be in the closure?
@@ -219,8 +219,3 @@ def panoptic_label(part):
   labels["instance_label"] = labels.apply(alias_instance, args=[instances], axis="columns")
   return labels
 
-def semantic_label(part):
-  return panoptic_label(part).drop("instance_label", axis="columns")
-
-def instance_label(part):
-  return panoptic_label(part).drop("semantic_label", axis="columns")

@@ -1,4 +1,4 @@
-def semantic_label(part):
+def ccqe(part):
   # get primary for each particle
   part = part.set_index("g4_id", drop=False)
 
