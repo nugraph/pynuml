@@ -90,8 +90,6 @@ class NuMLFile:
     self._groups.append([ group, keys ])
 
   def keys(self):
-    # with h5py.File(self._filename, "r") as f:
-    #   return f.keys()
     return self._fd.keys()
 
   def _cols(self, group, key):
@@ -110,8 +108,6 @@ class NuMLFile:
 
   def index(self, idx):
     """get the index for a given row"""
-    #with h5py.File(self._filename, "r") as f:
-      #return f["event_table/event_id"][idx]
     return self._index[idx - self._my_start]
 
   def __getitem__(self, idx):
