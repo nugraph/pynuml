@@ -72,10 +72,11 @@ class NuMLFile:
   def __str__(self):
     with h5py.File(self._filename, "r") as f:
       ret = ""
-      for k1 in self._file.keys():
+      for k1 in f.keys():
         ret += f"{k1}:\n"
-        for k2 in self._file[k1].keys(): ret += f"  {k2}"
-        ret += "\n"
+        for k2 in f[k1].keys():
+          if "event_id.seq" in k2: continue
+          ret += f"    {k2}\n"
       return ret
 
   def add_group(self, group, keys=[]):
