@@ -9,10 +9,17 @@ class NuMLFile:
     self._colmap = {
       "event_table": {
         "nu_dir": [ "nu_dir_x", "nu_dir_y", "nu_dir_z" ],
+        "nu_vtx": [ "nu_vtx_x", "nu_vtx_y", "nu_vtx_z" ],
+        "nu_vtx_corr": [ "nu_vtx_corr_x", "nu_vtx_corr_y", "nu_vtx_corr_z" ],
+        "nu_vtx_wire_pos": [ "nu_vtx_wire_pos_u", "nu_vtx_wire_pos_v", "nu_pos_wire_pos_y" ]
       },
       "particle_table": {
         "start_position": [ "start_position_x", "start_position_y", "start_position_z" ],
         "end_position": [ "end_position_x", "end_position_y", "end_position_z" ],
+        "start_position_corr": [ "start_position_corr_x", "start_position_corr_y", "start_position_corr_z" ],
+        "end_position_corr": [ "end_position_corr_x", "end_position_corr_y", "end_position_corr_z" ],
+        "start_wire_pos": [ "start_wire_pos_u", "start_wire_pos_v", "start_wire_pos_y" ],
+        "end_wire_pos": [ "end_wire_pos_u", "end_wire_pos_v", "end_wire_pos_y" ]
       },
       "hit_table": {},
       "spacepoint_table": {
@@ -70,14 +77,13 @@ class NuMLFile:
     return self._num_events
 
   def __str__(self):
-    with h5py.File(self._filename, "r") as f:
-      ret = ""
-      for k1 in f.keys():
-        ret += f"{k1}:\n"
-        for k2 in f[k1].keys():
-          if "event_id.seq" in k2: continue
-          ret += f"    {k2}\n"
-      return ret
+    ret = ""
+    for k1 in self._fd.keys():
+      ret += f"{k1}:\n"
+      for k2 in self._fd[k1].keys():
+        if "event_id.seq" in k2: continue
+        ret += f"    {k2}\n"
+    return ret
 
   def add_group(self, group, keys=[]):
     if not keys:
@@ -98,13 +104,12 @@ class NuMLFile:
     else: return [key]
 
   def get_dataframe(self, group, keys=[]):
-    with h5py.File(self._filename, "r") as f:
-      if not keys:
-        keys = list(f[group].keys())
-        if "event_id.seq" in keys: keys.remove("event_id.seq")
-        if "event_id.seq_cnt" in keys: keys.remove("event_id.seq_cnt")
-      dfs = [ pd.DataFrame(np.array(f[group][key]), columns=self._cols(group, key)) for key in keys ]
-      return pd.concat(dfs, axis="columns").set_index(["run","subrun","event"])
+    if not keys:
+      keys = list(self._fd[group].keys())
+      if "event_id.seq" in keys: keys.remove("event_id.seq")
+      if "event_id.seq_cnt" in keys: keys.remove("event_id.seq_cnt")
+    dfs = [ pd.DataFrame(np.array(self._fd[group][key]), columns=self._cols(group, key)) for key in keys ]
+    return pd.concat(dfs, axis="columns").set_index(["run","subrun","event"])
 
   def index(self, idx):
     """get the index for a given row"""
