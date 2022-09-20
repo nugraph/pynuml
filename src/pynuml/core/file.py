@@ -131,6 +131,22 @@ class File:
         dfs = [ pd.DataFrame(np.array(self._fd[group][key]), columns=self._cols(group, key)) for key in keys ]
         return pd.concat(dfs, axis="columns").set_index(["run","subrun","event"])
 
+    def get_dataframe_evt(self,
+                          group: str,
+                          keys: List[str] = []) -> pd.DataFrame:
+        if not keys:
+            keys = list(self._data[group].keys())
+            if "event_id.seq" in keys: keys.remove("event_id.seq")
+            if "event_id.seq_cnt" in keys: keys.remove("event_id.seq_cnt")
+        dfs = [ pd.DataFrame(np.array(self._data[group][key]), columns=self._cols(group, key)) for key in keys ]
+        df = pd.concat(dfs, axis="columns")
+        evt_idx_col = []
+        for seq in self._seq_cnt[group]:
+            evt_idx = seq[0]
+            evt_idx_col += seq[1]*[seq[0]]
+        df['evt_idx'] = evt_idx_col
+        return df
+
     def index(self, idx: int):
         """get the index for a given row"""
         return self._index[idx - self._my_start]
