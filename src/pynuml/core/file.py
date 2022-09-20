@@ -1,12 +1,12 @@
 import sys
+from typing import List
 import numpy as np
 import pandas as pd
 import h5py
 from mpi4py import MPI
 
-class NuMLFile:
-    def __init__(self, file):
-        self._filename = file
+class File:
+    def __init__(self, fname: str):
         self._colmap = {
             "event_table": {
                 "nu_dir": [ "nu_dir_x", "nu_dir_y", "nu_dir_z" ],
@@ -36,7 +36,7 @@ class NuMLFile:
         }
 
         # open the input HDF5 file in parallel
-        self._fd = h5py.File(self._filename, "r", driver='mpio', comm=MPI.COMM_WORLD)
+        self._fd = h5py.File(fname, "r", driver='mpio', comm=MPI.COMM_WORLD)
 
         # obtain metadata of dataset "event_table/event_id", later the dataset will
         # be read into self._index as a numpy array in data_partition()
@@ -78,6 +78,9 @@ class NuMLFile:
         # number of array elements of event_table/event_id assigned to this process
         self._my_count = -1
 
+    def __del__(self):
+        self._fd.close()
+
     def __len__(self):
         # inquire the number of unique event IDs in the input file
         return self._num_events
@@ -91,7 +94,14 @@ class NuMLFile:
                 ret += f"    {k2}\n"
         return ret
 
-    def add_group(self, group, keys=[]):
+    def __getitem__(self, idx: int):
+        """load a single event from file"""
+        self.read_data(idx, 1)
+        return self.build_evt(idx, 1)
+
+    def add_group(self,
+                  group: str,
+                  keys: List[str] = []) -> None:
         if not keys:
             # retrieve all the dataset names of the group
             keys = list(self._fd[group].keys())
@@ -104,12 +114,16 @@ class NuMLFile:
     def keys(self):
         return self._fd.keys()
 
-    def _cols(self, group, key):
+    def _cols(self,
+              group: str,
+              key: str) -> List[str]:
         if key == "event_id": return [ "run", "subrun", "event" ]
         if key in self._colmap[group].keys(): return self._colmap[group][key]
         else: return [key]
 
-    def get_dataframe(self, group, keys=[]):
+    def get_dataframe(self,
+                      group: str,
+                      keys: List[str] = []) -> pd.DataFrame:
         if not keys:
             keys = list(self._fd[group].keys())
             if "event_id.seq" in keys: keys.remove("event_id.seq")
@@ -117,33 +131,9 @@ class NuMLFile:
         dfs = [ pd.DataFrame(np.array(self._fd[group][key]), columns=self._cols(group, key)) for key in keys ]
         return pd.concat(dfs, axis="columns").set_index(["run","subrun","event"])
 
-    def index(self, idx):
+    def index(self, idx: int):
         """get the index for a given row"""
         return self._index[idx - self._my_start]
-
-    def __getitem__(self, idx):
-        """load a single event from file"""
-        start = idx - (idx%100)
-        print(start)
-        end = min(len(self), start+100)
-
-        with h5py.File(self._filename, "r") as f:
-            index = f["event_table/event_id"][idx]
-            ret = { "index": index }
-
-            for group, datasets in self._groups:
-                m = (f[group]["event_id"][()] == index).all(axis=1)
-                if not datasets: datasets = list(f[group].keys())
-                def slice(g, d, m):
-                    n = f[g][d].shape[1]
-                    m = m[:,None].repeat(n, axis=1)
-                    return pd.DataFrame(f[g][d][m].reshape([-1,n]), columns=self._cols(g,d))
-                dfs = [ slice(group, dataset, m) for dataset in datasets ]
-                ret[group] = pd.concat(dfs, axis="columns")
-            return ret
-
-    def __del__(self):
-        self._fd.close()
 
     def read_seq(self):
         for group, datasets in self._groups:
@@ -301,7 +291,6 @@ class NuMLFile:
         # each process reads its share of dataset "event_table/event_id" and
         # stores it in a numpy array
         self._index = np.array(self._index[self._my_start : self._my_start + self._my_count, :])
-
 
     def binary_search_min(self, key, base, nmemb):
         low = 0

@@ -1,6 +1,4 @@
-from ..core.file import NuMLFile
-from ..labels import *
-from ..graph import *
+import pynuml
 
 def process_event(key, out, sp, hit, part, edep, l=standard, voxelsize=1):
     """Process an event into a 3D pixel map"""

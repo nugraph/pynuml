@@ -141,7 +141,7 @@ def process_file(out, fname, g=process_event, l=pynuml.labels.standard,
         if isinstance(out, pynuml.core.H5Out): print(f"Output file: {out.fname}")
 
     # open input file and read dataset "/event_table/event_id.seq_cnt"
-    f = pynuml.core.NuMLFile(fname)
+    f = pynuml.File(fname)
 
     if profiling:
         open_time = MPI.Wtime() - timing
