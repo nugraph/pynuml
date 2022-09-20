@@ -12,15 +12,15 @@ class File:
                 "nu_dir": [ "nu_dir_x", "nu_dir_y", "nu_dir_z" ],
                 "nu_vtx": [ "nu_vtx_x", "nu_vtx_y", "nu_vtx_z" ],
                 "nu_vtx_corr": [ "nu_vtx_corr_x", "nu_vtx_corr_y", "nu_vtx_corr_z" ],
-                "nu_vtx_wire_pos": [ "nu_vtx_wire_pos_u", "nu_vtx_wire_pos_v", "nu_pos_wire_pos_y" ]
+                "nu_vtx_wire_pos": [ "nu_vtx_wire_pos_0", "nu_vtx_wire_pos_1", "nu_vtx_wire_pos_2" ]
             },
             "particle_table": {
                 "start_position": [ "start_position_x", "start_position_y", "start_position_z" ],
                 "end_position": [ "end_position_x", "end_position_y", "end_position_z" ],
                 "start_position_corr": [ "start_position_corr_x", "start_position_corr_y", "start_position_corr_z" ],
                 "end_position_corr": [ "end_position_corr_x", "end_position_corr_y", "end_position_corr_z" ],
-                "start_wire_pos": [ "start_wire_pos_u", "start_wire_pos_v", "start_wire_pos_y" ],
-                "end_wire_pos": [ "end_wire_pos_u", "end_wire_pos_v", "end_wire_pos_y" ]
+                "start_wire_pos": [ "start_wire_pos_0", "start_wire_pos_1", "start_wire_pos_2" ],
+                "end_wire_pos": [ "end_wire_pos_0", "end_wire_pos_1", "end_wire_pos_2" ]
             },
             "hit_table": {},
             "spacepoint_table": {
