@@ -1,7 +1,8 @@
-import h5py, numpy as np, pandas as pd
-from mpi4py import MPI
 import sys
-import enum
+import numpy as np
+import pandas as pd
+import h5py
+from mpi4py import MPI
 
 class NuMLFile:
   def __init__(self, file):
@@ -26,7 +27,12 @@ class NuMLFile:
         "hit_id": [ "hit_id_u", "hit_id_v", "hit_id_y" ],
         "position": [ "position_x", "position_y", "position_z" ],
       },
-      "edep_table": {}
+      "edep_table": {},
+      "ophit_table": {},
+      "opflash_table": {
+          "wire_pos": [ "wire_pos_0", "wire_pos_1", "wire_pos_2" ],
+          "pe": [ "pe_%i"%i for i in range(0,32)]
+      },
     }
 
     # open the input HDF5 file in parallel
@@ -117,6 +123,10 @@ class NuMLFile:
 
   def __getitem__(self, idx):
     """load a single event from file"""
+    start = idx - (idx%100)
+    print(start)
+    end = min(len(self), start+100)
+
     with h5py.File(self._filename, "r") as f:
       index = f["event_table/event_id"][idx]
       ret = { "index": index }
