@@ -14,7 +14,7 @@ class label(enum.Enum):
     diffuse = 7
     invisible = 8
 
-def standard(part):
+def standard(part, th_gamma=0.02, th_hadr=0.2):
     def walk(part, particles, depth, sl, il):
         def s(part, particles):
             import particle  # does this need to be in the closure?
@@ -50,29 +50,9 @@ def standard(part):
                     sl = label.michel.value
                     slc = label.michel.value
 
-                elif part.start_process == b'conv':
-                    if part.momentum >=0.02:
-                        sl = label.shower.value
-                        slc = label.shower.value
-                    else:
-                        sl = label.diffuse.value
-                        slc = label.diffuse.value
-                elif part.end_process == b'conv':
-                    if part.momentum >= 0.02:
-                        sl = label.shower.value
-                        slc = label.shower.value
-                    else:
-                        sl = label.diffuse.value
-                        slc = label.diffuse.value
-                elif part.start_process == b'compt':
-                    if part.momentum >= 0.02:
-                        sl = label.shower.value
-                        slc = label.shower.value
-                    else:
-                        sl = label.diffuse.value
-                        slc = label.diffuse.value
-                elif part.end_process == b'compt':
-                    if part.momentum >= 0.02:
+                elif part.start_process == b'conv' or part.end_process == b'conv' \
+                    or part.start_process == b'compt' or part.end_process == b'compt':
+                    if part.momentum >=th_gamma:
                         sl = label.shower.value
                         slc = label.shower.value
                     else:
@@ -91,6 +71,7 @@ def standard(part):
                         elif part.start_process == b'hIoni':
                             if abs(parent_type) == 2212:
                                 sl = label.hadron.value
+                                if part.momentum <= 0.0015: sl = label.diffuse.value
                             else:
                                 sl = label.pion.value
                             slc = None
@@ -111,29 +92,9 @@ def standard(part):
                 return sl, slc
 
             def gamma_labeler(part, parent_type):
-                if part.start_process == b'conv':
-                    if part.momentum >=0.02:
-                        sl = label.shower.value
-                        slc = label.shower.value
-                    else:
-                        sl = label.diffuse.value
-                        slc = label.diffuse.value
-                elif part.end_process == b'conv':
-                    if part.momentum >= 0.02:
-                        sl = label.shower.value
-                        slc = label.shower.value
-                    else:
-                        sl = label.diffuse.value
-                        slc = label.diffuse.value
-                elif part.start_process == b'compt':
-                    if part.momentum >= 0.02:
-                        sl = label.shower.value
-                        slc = label.shower.value
-                    else:
-                        sl = label.diffuse.value
-                        slc = label.diffuse.value
-                elif part.end_process == b'compt':
-                    if part.momentum >= 0.02:
+                if part.start_process == b'conv' or part.end_process == b'conv' \
+                    or part.start_process == b'compt' or part.end_process == b'compt':
+                    if part.momentum >=th_gamma:
                         sl = label.shower.value
                         slc = label.shower.value
                     else:
@@ -162,19 +123,19 @@ def standard(part):
                 22: gamma_labeler
             }
 
-            if part.end_process == b'CoupledTransportation':
-                # particle left the volume boundary
+            if particle.pdgid.charge(part.type) == 0 and part.end_process == b'CoupledTransportation':
+                # neutral particle left the volume boundary
                 sl = label.invisible.value
             else:
                 func = particle_processor.get(abs(part.type), lambda x ,y: (-1, None))
                 sl, slc = func(part, parent_type)
 
             # baryon interactions - hadron or diffuse
-            if (particle.pdgid.is_baryon(part.type) and particle.pdgid.charge(part.type) != 0) \
+            if (particle.pdgid.is_baryon(part.type) and particle.pdgid.charge(part.type) == 0) \
                 or particle.pdgid.is_nucleus(part.type):
-                sl = label.hadron.value
-            if particle.pdgid.is_baryon(part.type) and particle.pdgid.charge(part.type) == 0:
-                if abs(part.type) == 2212 and part.momentum >=0.2:
+                sl = label.diffuse.value
+            if particle.pdgid.is_baryon(part.type) and particle.pdgid.charge(part.type) != 0:
+                if abs(part.type) == 2212 and part.momentum >=th_hadr:
                     sl = label.hadron.value
                 else:
                     sl = label.diffuse.value
@@ -186,10 +147,15 @@ def standard(part):
             return sl, slc
 
         def i(part, particles, sl):
-            il, ilc = -1, -1
-            if sl != label.diffuse.value and sl != label.delta.value:
+            il, ilc = -1, None
+            if sl == label.muon.value and part.start_process == b'muIoni':
+                il = part.parent_id
+            elif (sl == label.pion.value or sl == label.hadron.value) and part.start_process == b'hIoni':
+                il = part.parent_id
+            elif sl != label.diffuse.value and sl != label.delta.value and sl != label.invisible.value:
                 il = part.g4_id
                 if sl == label.shower.value: ilc = il
+                if sl == label.michel.value: ilc = il
             return il, ilc
 
         if sl is not None: slc = sl
@@ -198,7 +164,7 @@ def standard(part):
         if il is not None: ilc = il
         else: il, ilc = i(part, particles, sl)
 
-        ret = [ { "g4_id": part.g4_id, "parent_id": part.parent_id, "type": part.type, "start_process": part.start_process, "end_process": part.end_process, "momentum": part.momentum,                             "semantic_label": sl, "instance_label": il } ]
+        ret = [ { "g4_id": part.g4_id, "parent_id": part.parent_id, "type": part.type, "start_process": part.start_process, "end_process": part.end_process, "momentum": part.momentum, "semantic_label": sl, "instance_label": il } ]
         for _, row in particles[(part.g4_id==particles.parent_id)].iterrows():
             ret += walk(row, particles, depth+1, slc, ilc)
         return ret
@@ -209,6 +175,7 @@ def standard(part):
     for _, primary in primaries.iterrows():
         ret += walk(primary, part, 0, None, None)
     import pandas as pd
+    if len(ret)==0: return
     labels = pd.DataFrame.from_dict(ret)
     instances = { val: i for i, val in enumerate(labels[(labels.instance_label>=0)].instance_label.unique()) }
 
@@ -218,4 +185,3 @@ def standard(part):
 
     labels["instance_label"] = labels.apply(alias_instance, args=[instances], axis="columns")
     return labels
-

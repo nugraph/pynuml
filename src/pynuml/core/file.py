@@ -12,26 +12,19 @@ class File:
                 "nu_dir": [ "nu_dir_x", "nu_dir_y", "nu_dir_z" ],
                 "nu_vtx": [ "nu_vtx_x", "nu_vtx_y", "nu_vtx_z" ],
                 "nu_vtx_corr": [ "nu_vtx_corr_x", "nu_vtx_corr_y", "nu_vtx_corr_z" ],
-                "nu_vtx_wire_pos": [ "nu_vtx_wire_pos_0", "nu_vtx_wire_pos_1", "nu_vtx_wire_pos_2" ]
             },
             "particle_table": {
                 "start_position": [ "start_position_x", "start_position_y", "start_position_z" ],
                 "end_position": [ "end_position_x", "end_position_y", "end_position_z" ],
                 "start_position_corr": [ "start_position_corr_x", "start_position_corr_y", "start_position_corr_z" ],
                 "end_position_corr": [ "end_position_corr_x", "end_position_corr_y", "end_position_corr_z" ],
-                "start_wire_pos": [ "start_wire_pos_0", "start_wire_pos_1", "start_wire_pos_2" ],
-                "end_wire_pos": [ "end_wire_pos_0", "end_wire_pos_1", "end_wire_pos_2" ]
             },
-            "hit_table": {},
             "spacepoint_table": {
                 "hit_id": [ "hit_id_u", "hit_id_v", "hit_id_y" ],
                 "position": [ "position_x", "position_y", "position_z" ],
             },
-            "edep_table": {},
-            "ophit_table": {},
-            "opflash_table": {
-                "wire_pos": [ "wire_pos_0", "wire_pos_1", "wire_pos_2" ],
-                "pe": [ "pe_%i"%i for i in range(0,32)]
+            "pandoraPrimary_table": {
+                "vtx": [ "vtx_x", "vtx_y", "vtx_z" ],
             },
         }
 
@@ -106,7 +99,7 @@ class File:
             # retrieve all the dataset names of the group
             keys = list(self._fd[group].keys())
             # dataset event_id is not needed
-            if "event_id" in keys: keys.remove("event_id")
+            if group is not "event_table" and "event_id" in keys: keys.remove("event_id")
             if "event_id.seq" in keys: keys.remove("event_id.seq")
             if "event_id.seq_cnt" in keys: keys.remove("event_id.seq_cnt")
         self._groups.append([ group, keys ])
@@ -118,8 +111,9 @@ class File:
               group: str,
               key: str) -> List[str]:
         if key == "event_id": return [ "run", "subrun", "event" ]
-        if key in self._colmap[group].keys(): return self._colmap[group][key]
-        else: return [key]
+        if group in self._colmap and key in self._colmap[group].keys(): return self._colmap[group][key]
+        elif self._fd[group][key].shape[1]==1: return [key]
+        else: return [ key+"_"+str(c) for c in range(0,self._fd[group][key].shape[1])]
 
     def get_dataframe(self,
                       group: str,
@@ -142,7 +136,6 @@ class File:
         df = pd.concat(dfs, axis="columns")
         evt_idx_col = []
         for seq in self._seq_cnt[group]:
-            evt_idx = seq[0]
             evt_idx_col += seq[1]*[seq[0]]
         df['evt_idx'] = evt_idx_col
         return df
@@ -458,7 +451,7 @@ class File:
                 lower = np.searchsorted(all_seq_cnt[:,0], start)
                 upper = np.searchsorted(all_seq_cnt[:,0], start+count)
                 self._seq_cnt[group] = np.array(all_seq_cnt[lower:upper], dtype=np.int64)
-                lower = all_seq_cnt[lower, 0]
+                lower = np.sum(all_seq_cnt[0:lower, 1])#all_seq_cnt[lower, 0]
                 upper = lower + np.sum(all_seq_cnt[lower:upper, 1])
             else:
                 # use evt_id.seq to calculate subarray boundaries
