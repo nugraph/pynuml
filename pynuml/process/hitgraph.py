@@ -1,8 +1,9 @@
 import pandas as pd
-import pynuml
 from mpi4py import MPI
 import numpy as np
 import sys
+from .. import io, labels, graph
+from ..util import requires_torch, requires_pyg
 
 edep1_t = 0.0
 edep2_t = 0.0
@@ -15,8 +16,8 @@ profiling = False
 
 def process_event(event_id, evt, l, e, lower_bnd=20, **edge_args):
     """Process an event into graphs"""
-    pynuml.util.requires_torch()
-    pynuml.util.requires_pyg()
+    requires_torch()
+    requires_pyg()
 
     # skip any events with no simulated hits
 
@@ -120,10 +121,10 @@ def process_event(event_id, evt, l, e, lower_bnd=20, **edge_args):
 
     return [[f"r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}", pyg.data.Data(**data)]]
 
-def process_file(out, fname, g=process_event, l=pynuml.labels.standard,
-    e=pynuml.graph.edges.delaunay, p=None, overwrite=True, use_seq_cnt=True, evt_part=2, profile=False):
+def process_file(out, fname, g=process_event, l=labels.standard,
+    e=graph.edges.delaunay, p=None, overwrite=True, use_seq_cnt=True, evt_part=2, profile=False):
 
-    pynuml.util.requires_torch()
+    requires_torch()
 
     comm = MPI.COMM_WORLD
     nprocs = comm.Get_size()
@@ -140,11 +141,11 @@ def process_file(out, fname, g=process_event, l=pynuml.labels.standard,
     if rank == 0:
         print("------------------------------------------------------------------")
         print(f"Processing input file: {fname}")
-        if isinstance(out, pynuml.core.PTOut): print(f"Output folder: {out.outdir}")
-        if isinstance(out, pynuml.core.H5Out): print(f"Output file: {out.fname}")
+        if isinstance(out, io.PTOut): print(f"Output folder: {out.outdir}")
+        if isinstance(out, io.H5Out): print(f"Output file: {out.fname}")
 
     # open input file and read dataset "/event_table/event_id.seq_cnt"
-    f = pynuml.File(fname)
+    f = io.File(fname)
 
     if profiling:
         open_time = MPI.Wtime() - timing
@@ -211,7 +212,7 @@ def process_file(out, fname, g=process_event, l=pynuml.labels.standard,
         event_id = f.index(idx)
 
         # avoid overwriting to already existing files
-        if isinstance(out, pynuml.core.PTOut):
+        if isinstance(out, io.PTOut):
             import os.path as osp, os
             out_file = f"{out.outdir}/r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}.pt"
             if osp.exists(out_file):
@@ -366,13 +367,13 @@ def process_file(out, fname, g=process_event, l=pynuml.labels.standard,
             print("torch_geometric             time ", end='')
             print("MAX=%8.2f  MIN=%8.2f  MID=%8.2f" % (sort_t[nprocs-1], sort_t[0], sort_t[nprocs//2]))
             sort_t = all_t[12]
-            if e == pynuml.graph.edges.delaunay:
+            if e == graph.edges.delaunay:
                 print("edge indexing delaunay      time ", end='')
-            elif e == pynuml.graph.edges.radius:
+            elif e == graph.edges.radius:
                 print("edge indexing radius        time ", end='')
-            elif e == pynuml.graph.edges.knn:
+            elif e == graph.edges.knn:
                 print("edge indexing knn           time ", end='')
-            elif e == pynuml.graph.edges.window:
+            elif e == graph.edges.window:
                 print("edge indexing window        time ", end='')
             else:
                 print("edge indexing               time ", end='')

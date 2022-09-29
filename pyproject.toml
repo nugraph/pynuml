@@ -7,19 +7,23 @@ name = 'pynuml'
 version = '0.1.0'
 description = 'Standardised ML input processing for particle physics'
 readme = 'README.md'
-requires-python = '>=3.10'
+requires-python = '>=3.7'
 keywords = ['physics', 'neutrino', 'gnn', 'hdf5']
 license = {text = 'MIT License'}
 classifiers = [
     'Intended Audience :: Science/Research',
     'License :: OSI Approved :: MIT License',
     'Programming Language :: Python :: 3',
+    'Programming Language :: Python :: 3.7',
+    'Programming Language :: Python :: 3.8',
+    'Programming Language :: Python :: 3.9',
     'Programming Language :: Python :: 3.10',
 ]
 dependencies = [
     'h5py',
     'mpi4py',
     'pandas',
+    'particle'
 ]
 
 [project.optional-dependencies]
@@ -27,3 +31,8 @@ torch = [
     'torch>=1.12.1',
     'torch-geometric>=2.1.0',
 ]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pynuml"]
+
