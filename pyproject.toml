@@ -36,3 +36,7 @@ torch = [
 where = ["."]
 include = ["pynuml"]
 
+[project.urls]
+"Homepage" = "https://github.com/vhewes/pynuml"
+"Bug Tracker" = "https://github.com/vhewes/pynuml/issues"
+
