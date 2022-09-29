@@ -1,6 +1,4 @@
 import pandas as pd
-import torch
-import torch_geometric as tg
 import pynuml
 from mpi4py import MPI
 import numpy as np
@@ -17,6 +15,9 @@ profiling = False
 
 def process_event(event_id, evt, l, e, lower_bnd=20, **edge_args):
     """Process an event into graphs"""
+    pynuml.util.requires_torch()
+    pynuml.util.requires_pyg()
+
     # skip any events with no simulated hits
 
     global edep1_t, edep2_t, hit_merge_t, torch_t, plane_t, label_t, edge_t
@@ -89,7 +90,7 @@ def process_event(event_id, evt, l, e, lower_bnd=20, **edge_args):
             start_t = end_t
 
         # Save to file
-        tmp = tg.data.Data(
+        tmp = pyg.data.Data(
             pos=torch.tensor(plane[["global_wire", "global_time"]].values) * torch.tensor(np.array([0.3, 0.055]))[None, :]
         )
         node_feats = ["global_plane", "global_wire", "global_time", "tpc",
@@ -117,10 +118,12 @@ def process_event(event_id, evt, l, e, lower_bnd=20, **edge_args):
         print("\n  error: hit with invisible label found! skipping event\n")
         return []
 
-    return [[f"r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}", tg.data.Data(**data)]]
+    return [[f"r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}", pyg.data.Data(**data)]]
 
 def process_file(out, fname, g=process_event, l=pynuml.labels.standard,
     e=pynuml.graph.edges.delaunay, p=None, overwrite=True, use_seq_cnt=True, evt_part=2, profile=False):
+
+    pynuml.util.requires_torch()
 
     comm = MPI.COMM_WORLD
     nprocs = comm.Get_size()

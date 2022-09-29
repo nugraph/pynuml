@@ -1,11 +1,12 @@
 import os
 import sys
-import torch
 import h5py
 from mpi4py import MPI
+from pynuml.util import requires_package
 
 class PTOut:
     def __init__(self, outdir):
+        requires_package('torch')
         self.outdir = outdir
         isExist = os.path.exists(outdir)
         if not isExist:
@@ -23,6 +24,7 @@ class PTOut:
 
 class H5Out:
     def __init__(self, fname, overwrite=False):
+        requires_package('torch')
         # This implements one-file-per-process I/O strategy.
         # append MPI process rank to the output file name
         rank = MPI.COMM_WORLD.Get_rank()
