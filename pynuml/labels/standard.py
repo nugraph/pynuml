@@ -14,7 +14,15 @@ class label(enum.Enum):
     diffuse = 7
     invisible = 8
 
-def standard(part, th_gamma=0.02, th_hadr=0.2):
+def standard(part: pd.DataFrame,
+             th_gamma: float = 0.02,
+             th_hadr: float = 0.2):
+    '''Standard labelling function.
+
+    Pion, Muon, Kaon, Hadron, EM shower, Michel electron, Delta ray,
+    diffuse activity.
+    '''
+
     def walk(part, particles, depth, sl, il):
         def s(part, particles):
             import particle  # does this need to be in the closure?
@@ -135,7 +143,7 @@ def standard(part, th_gamma=0.02, th_hadr=0.2):
                 or particle.pdgid.is_nucleus(part.g4_pdg):
                 sl = label.diffuse.value
             if particle.pdgid.is_baryon(part.g4_pdg) and particle.pdgid.charge(part.g4_pdg) != 0:
-                if abs(part.g4_pdg) == 2212 and part.momentum >=th_hadr:
+                if abs(part.g4_pdg) == 2212 and part.momentum >= th_hadr:
                     sl = label.hadron.value
                 else:
                     sl = label.diffuse.value
