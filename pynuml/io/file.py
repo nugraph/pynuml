@@ -90,7 +90,7 @@ class File:
     def __getitem__(self, idx: int):
         """load a single event from file"""
         self.read_data(idx, 1)
-        return self.build_evt(idx, 1)
+        return self.build_evt(idx, 1)[0]
 
     def add_group(self,
                   group: str,
