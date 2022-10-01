@@ -1,7 +1,9 @@
+import sys
+from typing import List
+import numpy as np
 import pandas as pd
 from mpi4py import MPI
-import numpy as np
-import sys
+
 from .. import io, labels, graph
 from ..util import requires_torch, requires_pyg
 
@@ -14,7 +16,12 @@ label_t = 0.0
 edge_t = 0.0
 profiling = False
 
-def process_event(event_id, evt, l, e, lower_bnd=20, **edge_args):
+def process_event(event_id,
+                  evt: List,
+                  l,
+                  e,
+                  lower_bnd=20,
+                  **edge_args):
     """Process an event into graphs"""
     requires_torch()
     requires_pyg()
@@ -121,8 +128,17 @@ def process_event(event_id, evt, l, e, lower_bnd=20, **edge_args):
 
     return [[f"r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}", pyg.data.Data(**data)]]
 
-def process_file(out, fname, g=process_event, l=labels.standard,
-    e=graph.edges.delaunay, p=None, overwrite=True, use_seq_cnt=True, evt_part=2, profile=False):
+def process_file(out,
+                 fname: str,
+                 g = process_event,
+                 l = labels.standard,
+                 e = graph.edges.delaunay,
+                 p: str = None,
+                 overwrite: bool = True,
+                 use_seq_cnt: bool = True,
+                 evt_part: int = 2,
+                 profile: bool = False) -> None:
+    '''Loop over events in file and process each into an ML object'''
 
     requires_torch()
 
