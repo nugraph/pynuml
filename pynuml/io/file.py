@@ -1,5 +1,5 @@
 import sys
-from typing import List
+from typing import Dict, List, NoReturn
 import numpy as np
 import pandas as pd
 import h5py
@@ -94,7 +94,7 @@ class File:
 
     def add_group(self,
                   group: str,
-                  keys: List[str] = []) -> None:
+                  keys: List[str] = []) -> NoReturn:
         if not keys:
             # retrieve all the dataset names of the group
             keys = list(self._fd[group].keys())
@@ -144,7 +144,7 @@ class File:
         """get the index for a given row"""
         return self._index[idx - self._my_start]
 
-    def read_seq(self):
+    def read_seq(self) -> NoReturn:
         for group, datasets in self._groups:
             try:
                 # read an HDF5 dataset into a numpy array
@@ -155,7 +155,7 @@ class File:
                 sys.stdout.flush()
                 comm.Abort(1)
 
-    def read_seq_cnt(self):
+    def read_seq_cnt(self) -> NoReturn:
         for group, datasets in self._groups:
             try:
                 # read an HDF5 dataset into a numpy array
@@ -166,7 +166,7 @@ class File:
                 sys.stdout.flush()
                 comm.Abort(1)
 
-    def data_partition(self):
+    def data_partition(self) -> NoReturn:
         # Calculate the start indices and counts of evt.seq assigned to each process
         # self._starts: a numpy array of size nprocs
         # self._counts: a numpy array of size nprocs
@@ -436,7 +436,9 @@ class File:
 
         return lower, upper
 
-    def read_data(self, start, count):
+    def read_data(self,
+                  start: int,
+                  count: int) -> NoReturn:
         # (sequentially) read subarrays of all datasets in all groups that fall
         # in the range of event_id.seq starting from 'start' and amount of 'count'
 
@@ -482,7 +484,10 @@ class File:
         # read dataset "event_table/event_id" into a numpy array
         self._index = np.array(self._index[start : start + count, :])
 
-    def read_data_all(self, use_seq_cnt=True, evt_part=2, profile=False):
+    def read_data_all(self,
+                      use_seq_cnt: bool = True,
+                      evt_part: int = 2,
+                      profile: bool = False) -> NoReturn:
         # use_seq_cnt: True  - use event.seq_cnt dataset to calculate partitioning
         #                      starts and counts
         #              False - use event.seq dataset to calculate starts and counts
@@ -564,7 +569,9 @@ class File:
                 print("MAX=%8.2f  MIN=%8.2f" % (max_total_t[2], min_total_t[2]))
                 print("(MAX and MIN timings are among %d processes)" % nprocs)
 
-    def build_evt(self, start=None, count=None):
+    def build_evt(self,
+                  start: int = None,
+                  count: int = None) -> List[Dict]:
         # This process is responsible for event IDs from start to (start+count-1).
         # All data of the same event ID will be used to create a graph.
         # This function collects all data based on event_id.seq or event_id.seq_cnt
