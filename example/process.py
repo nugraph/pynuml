@@ -1,6 +1,6 @@
 import sys, os.path as osp
 sys.path.append(osp.dirname(osp.dirname(osp.realpath(__file__))))
-import numl, glob
+import pynuml, glob
 import getopt
 
 def main(argv):
@@ -45,16 +45,16 @@ def main(argv):
 
   if output_h5:
     # output HDF5 files, one graph per group, one file per MPI process
-    out = numl.core.out.H5Out(outputfile, overwrite)
+    out = pynuml.io.out.H5Out(outputfile, overwrite)
   else:
     # output pytorch files, one graph per file
-    out = numl.core.out.PTOut(outputfile)
+    out = pynuml.io.out.PTOut(outputfile)
 
-  numl.process.hitgraph.process_file(out, inputfile,
-                                     l=numl.labels.standard.panoptic_label,
-                                     use_seq_cnt=use_seq_cnt,
-                                     evt_part=evt_partition,
-                                     profile=profiling)
+  pynuml.process.hitgraph.process_file(out, inputfile,
+                                       l=pynuml.labels.standard,
+                                       use_seq_cnt=use_seq_cnt,
+                                       evt_part=evt_partition,
+                                       profile=profiling)
 
 if __name__ == "__main__":
    main(sys.argv[1:])

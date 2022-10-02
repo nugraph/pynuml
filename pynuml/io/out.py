@@ -43,6 +43,7 @@ class H5Out:
         # sys.stdout.flush()
 
     def save(self, obj, name):
+        """
         for key, val in obj:
             # set chunk sizes to val shape, so there is only one chunk per dataset
             # if isinstance(val, torch.Tensor) and val.nelement() == 0 :
@@ -55,6 +56,30 @@ class H5Out:
             else:
                 # if data is not a tensor or is empty, then disable chunking/compression
                 self.f.create_dataset(f"/{name}/{key}", data=val)
+        """
+        import numpy as np
+        # collect and construct fields of compound data type
+        fields = []
+        data = ()
+        for key, val in obj:
+            if np.isscalar(val): # only n_sp is a scalar
+                data = data + (val,)
+                field = (key, type(val))
+            else:
+                if val.nelement() == 0: # save tensor with zero-sized dimension as a scalar 0
+                    # HDF5 compound data type does not allow zero-size dimension
+                    # ValueError: Zero-sized dimension specified (zero-sized dimension specified)
+                    data = data + (0,)
+                    field = (key, val.dtype)
+                else:
+                    val = val.numpy()  # convert a tensor to numpy
+                    data = data + (val,)
+                    field = (key, val.dtype, val.shape)
+            fields.append(field)
+        ctype = np.dtype(fields)
+        # create a scalar dataset of compound data type
+        ds = self.f.create_dataset(f"/{name}", shape=(), dtype=ctype, data=data)
+        del ctype, fields, data, ds
 
     def __del__(self):
         if self.f != None: self.f.close()
