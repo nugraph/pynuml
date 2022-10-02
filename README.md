@@ -1,6 +1,6 @@
 # PyNuML: HDF5 IO and ML processing for neutrino physics
 
-PyNuML is a toolkit for processing Machine Learning (ML) inputs from neutrino physics simulation datasets. It offers efficient MPI parallel processing of datasets, including standardised solutions for generating semantic and instance labels from low-level particle simulation, and constructing PyTorch ML inputs such as pixel maps and graphs. The package uses a modular design to maximise flexibility and extensibility, allowing the user to write custom labelling and/or object formation code in place of the algorithms provided.
+PyNuML is a Python toolkit for processing machine learning (ML) inputs from neutrino physics simulation datasets. It offers efficient MPI parallel processing of datasets, including standardised solutions for generating semantic and instance labels from low-level particle simulation, and constructing PyTorch ML inputs such as pixel maps and graphs. The package uses a modular design to maximise flexibility and extensibility, allowing the user to write custom labelling and/or object formation code in place of the algorithms provided.
 
 ## Parallel Event IO
 
@@ -16,7 +16,7 @@ Many physicists producing ML inputs develop such a workflow from scratch, unnece
 
 PyNuML maximises efficiency by performing a single labelling pass over the true particle table, stepping hierarchically down from primary particles, assigning each particle a semantic and instance label using a standard taxonomy. These labels can then be efficiently propagated to detector objects using Pandas DataFrame merge operations, using the true energy deposition table as an intermediary. This also avoids double-counting errors that can occur when aggregating objects into pixel or voxel maps is necessary.
 
-If the user's simulation includes custom Geant4 physics processes that necessitate modifications to a standard labelling scheme -- or if they simply prefer a different labelling scheme altogether -- the user can simply write their own labelling function to use instead. If the user develops a new labelling function that has general appeal, that function can then be added to the standard labelling options included in PyNuML.
+If the user's simulation includes custom Geant4 physics processes that necessitate modifications to a standard labelling scheme – or if they simply prefer a different labelling scheme altogether – the user can simply write their own labelling function to use instead. If the user develops a new labelling function that has general appeal, that function can then be added to the standard labelling options included in PyNuML.
 
 ## ML object formation
 
