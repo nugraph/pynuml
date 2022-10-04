@@ -23,11 +23,14 @@ def process_event(event_id,
                   lower_bnd=20,
                   **edge_args):
     """Process an event into graphs"""
+
     requires_torch()
+    import torch
+
     requires_pyg()
+    import torch_geometric as pyg
 
     # skip any events with no simulated hits
-
     global edep1_t, edep2_t, hit_merge_t, torch_t, plane_t, label_t, edge_t
     global profiling
     if profiling:
@@ -141,6 +144,7 @@ def process_file(out,
     '''Loop over events in file and process each into an ML object'''
 
     requires_torch()
+    import torch
 
     comm = MPI.COMM_WORLD
     nprocs = comm.Get_size()

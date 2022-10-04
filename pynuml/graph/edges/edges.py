@@ -1,9 +1,10 @@
-import pynuml.util
+from ...util import requires_torch, requires_pyg
 
 def window(data, wire_distance=1, time_distance=1):
     '''Form graph edges forming edges in a given window around each node'''
     import pandas as pd
-    pynuml.util.requires_torch()
+    requires_torch()
+    import torch
 
     df = pd.DataFrame(data.pos.numpy(), columns=["wire", "time"]).reset_index()
     df["dummy"] = 1
@@ -14,15 +15,18 @@ def window(data, wire_distance=1, time_distance=1):
 
 def delaunay(data):
     '''Form graph edges using Delaunay triangulation'''
-    pynuml.util.requires_pyg()
+    requires_pyg()
+    import torch_geometric as pyg
     return pyg.transforms.FaceToEdge()(pyg.transforms.Delaunay()(data))
 
 def radius(data, r=2, max_num_neighbours=8):
     '''Form graph edges using Radius Graph transformation'''
-    pynuml.util.requires_pyg()
+    requires_pyg()
+    import torch_geometric as pyg
     return pyg.transforms.RadiusGraph(r=r, max_num_neighbors=max_num_neighbours)(data)
 
 def knn(data, k=8):
     '''Form graph edges using KNN Graph transformation'''
-    pynuml.util.requires_pyg()
+    requires_pyg()
+    import torch_geometric as pyg
     return pyg.transforms.KNNGraph(k=k)(data)

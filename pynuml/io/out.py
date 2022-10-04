@@ -17,6 +17,7 @@ class PTOut:
             MPI.COMM_WORLD.Abort(1)
 
     def save(self, obj, name):
+        import torch
         torch.save(obj, os.path.join(self.outdir, name)+".pt")
 
     def exists(self, name):
@@ -24,7 +25,6 @@ class PTOut:
 
 class H5Out:
     def __init__(self, fname, overwrite=False):
-        requires_torch()
         # This implements one-file-per-process I/O strategy.
         # append MPI process rank to the output file name
         rank = MPI.COMM_WORLD.Get_rank()
