@@ -1,7 +1,6 @@
 import enum
-from functools import wraps
-from time import time
 from typing import NoReturn
+import pandas as pd
 
 class label(enum.Enum):
     pion = 0
@@ -182,7 +181,6 @@ def standard(part: pd.DataFrame,
     primaries = part[(part.parent_id==0)]
     for _, primary in primaries.iterrows():
         ret += walk(primary, part, 0, None, None)
-    import pandas as pd
     if len(ret)==0: return
     labels = pd.DataFrame.from_dict(ret)
     instances = { val: i for i, val in enumerate(labels[(labels.instance_label>=0)].instance_label.unique()) }
