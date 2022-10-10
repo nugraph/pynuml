@@ -20,7 +20,7 @@ classifiers = [
     'Programming Language :: Python :: 3.10',
 ]
 dependencies = [
-    'h5py',
+    'h5py>=3.7.0',
     'mpi4py',
     'pandas',
     'particle'
