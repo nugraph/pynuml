@@ -1,5 +1,6 @@
 import sys
 from typing import List
+from collections.abc import Callable
 import numpy as np
 import pandas as pd
 from mpi4py import MPI
@@ -58,7 +59,7 @@ def process_event(event_id,
     # skip events with fewer than lower_bnd simulated hits in any plane
     for i in range(3): 
         #filter out cosmics
-        if (evt_hit[~evt_hit['is_cosmic']].global_plane==i).sum() < lower_bnd: return
+        if (evt_hit[~evt_hit['is_cosmic']].local_plane==i).sum() < lower_bnd: return
 
     # get labels for each particle
     evt_part = l(evt["particle_table"])
@@ -102,10 +103,11 @@ def process_event(event_id,
 
         # Save to file
         tmp = pyg.data.Data(
-            pos=torch.tensor(plane[["global_wire", "global_time"]].values) * torch.tensor(np.array([0.3, 0.055]))[None, :]
+            pos=torch.tensor(plane[["local_wire", "local_time"]].values) * torch.tensor(np.array([0.3, 0.055]))[None, :]
         )
-        node_feats = ["global_plane", "global_wire", "global_time", "tpc",
-            "local_plane", "local_wire", "local_time", "integral", "rms"]
+        # node_feats = ["global_plane", "global_wire", "global_time", "tpc",
+        #     "local_plane", "local_wire", "local_time", "integral", "rms"]
+        node_feats = [ 'local_wire', 'local_time', 'integral', 'rms' ]
         data["x"+suffix] = torch.tensor(plane[node_feats].to_numpy()).float()
         data["y_c"+suffix] = torch.tensor(plane["is_cosmic"].to_numpy()).bool()
         data["y_s"+suffix] = torch.tensor(plane["semantic_label"].to_numpy()).long()[~data["y_c"+suffix]]
