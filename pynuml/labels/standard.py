@@ -26,33 +26,33 @@ def standard(part: pd.DataFrame,
         def s(part, particles):
             import particle  # does this need to be in the closure?
             sl, slc = -1, None
-            parent_g4_pdg = 0 if part.parent_id == 0 else particles.g4_pdg[part.parent_id]
+            parent_type = 0 if part.parent_id == 0 else particles.type[part.parent_id]
 
-            def pion_labeler(part, parent_g4_pdg):
+            def pion_labeler(part, parent_type):
                 sl = label.pion.value
                 slc = None
                 return sl, slc
 
-            def muon_labeler(part, parent_g4_pdg):
+            def muon_labeler(part, parent_type):
                 sl = label.muon.value
                 slc = None
                 return sl, slc
 
-            def kaon_labeler(part, parent_g4_pdg):
+            def kaon_labeler(part, parent_type):
                 sl = label.kaon.value
                 slc = None
                 return sl, slc
 
-            def neutral_pions_kaons_labeler(part, parent_g4_pdg):
+            def neutral_pions_kaons_labeler(part, parent_type):
                 sl = label.invisible.value
                 slc = None
                 return sl, slc
 
-            def electron_positron_labeler(part, parent_g4_pdg):
+            def electron_positron_labeler(part, parent_type):
                 if part.start_process == b'primary':
                     sl = label.shower.value
                     slc = label.shower.value
-                elif abs(parent_g4_pdg) == 13 and (part.start_process == b'muMinusCaptureAtRest' \
+                elif abs(parent_type) == 13 and (part.start_process == b'muMinusCaptureAtRest' \
                     or part.start_process == b'muPlusCaptureAtRest' or part.start_process == b'Decay'):
                     sl = label.michel.value
                     slc = label.michel.value
@@ -76,7 +76,7 @@ def standard(part: pd.DataFrame,
                             sl = label.muon.value
                             slc = None
                         elif part.start_process == b'hIoni':
-                            if abs(parent_g4_pdg) == 2212:
+                            if abs(parent_type) == 2212:
                                 sl = label.hadron.value
                                 if part.momentum <= 0.0015: sl = label.diffuse.value
                             else:
@@ -98,7 +98,7 @@ def standard(part: pd.DataFrame,
 
                 return sl, slc
 
-            def gamma_labeler(part, parent_g4_pdg):
+            def gamma_labeler(part, parent_type):
                 if part.start_process == b'conv' or part.end_process == b'conv' \
                     or part.start_process == b'compt' or part.end_process == b'compt':
                     if part.momentum >=th_gamma:
@@ -115,8 +115,8 @@ def standard(part: pd.DataFrame,
                     raise Exception('gamma interaction failed to be labeled as expected')
                 return sl, slc
 
-            def unlabeled_particle(part, parent_g4_pdg):
-                raise Exception(f"particle not recognised! PDG code {part.g4_pdg}, parent PDG code {parent_g4_pdg}, start process {part.start_process}, end process {part.end_process}")
+            def unlabeled_particle(part, parent_type):
+                raise Exception(f"particle not recognised! PDG code {part.type}, parent PDG code {parent_type}, start process {part.start_process}, end process {part.end_process}")
 
             particle_processor = {
                 211: pion_labeler,
@@ -130,26 +130,26 @@ def standard(part: pd.DataFrame,
                 22: gamma_labeler
             }
 
-            if particle.pdgid.charge(part.g4_pdg) == 0 and part.end_process == b'CoupledTransportation':
+            if particle.pdgid.charge(part.type) == 0 and part.end_process == b'CoupledTransportation':
                 # neutral particle left the volume boundary
                 sl = label.invisible.value
             else:
-                func = particle_processor.get(abs(part.g4_pdg), lambda x ,y: (-1, None))
-                sl, slc = func(part, parent_g4_pdg)
+                func = particle_processor.get(abs(part.type), lambda x ,y: (-1, None))
+                sl, slc = func(part, parent_type)
 
             # baryon interactions - hadron or diffuse
-            if (particle.pdgid.is_baryon(part.g4_pdg) and particle.pdgid.charge(part.g4_pdg) == 0) \
-                or particle.pdgid.is_nucleus(part.g4_pdg):
+            if (particle.pdgid.is_baryon(part.type) and particle.pdgid.charge(part.type) == 0) \
+                or particle.pdgid.is_nucleus(part.type):
                 sl = label.diffuse.value
-            if particle.pdgid.is_baryon(part.g4_pdg) and particle.pdgid.charge(part.g4_pdg) != 0:
-                if abs(part.g4_pdg) == 2212 and part.momentum >= th_hadr:
+            if particle.pdgid.is_baryon(part.type) and particle.pdgid.charge(part.type) != 0:
+                if abs(part.type) == 2212 and part.momentum >= th_hadr:
                     sl = label.hadron.value
                 else:
                     sl = label.diffuse.value
 
             # check to make sure particle was assigned
             if sl == -1:
-                unlabeled_particle(part, parent_g4_pdg)
+                unlabeled_particle(part, parent_type)
 
             return sl, slc
 
@@ -171,7 +171,7 @@ def standard(part: pd.DataFrame,
         if il is not None: ilc = il
         else: il, ilc = i(part, particles, sl)
 
-        ret = [ { "g4_id": part.g4_id, "parent_id": part.parent_id, "g4_pdg": part.g4_pdg, "start_process": part.start_process, "end_process": part.end_process, "momentum": part.momentum, "semantic_label": sl, "instance_label": il } ]
+        ret = [ { "g4_id": part.g4_id, "parent_id": part.parent_id, "type": part.type, "start_process": part.start_process, "end_process": part.end_process, "momentum": part.momentum, "semantic_label": sl, "instance_label": il } ]
         for _, row in particles[(part.g4_id==particles.parent_id)].iterrows():
             ret += walk(row, particles, depth+1, slc, ilc)
         return ret
