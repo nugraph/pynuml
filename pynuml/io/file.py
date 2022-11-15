@@ -72,7 +72,7 @@ class File:
         self._my_count = -1
 
     def __del__(self):
-        self._fd.close()
+        if self._fd: self._fd.close()
 
     def __len__(self):
         # inquire the number of unique event IDs in the input file
@@ -450,11 +450,11 @@ class File:
                 all_seq_cnt = self._whole_seq_cnt[group]
                 # search indices of start and end in all_seq_cnt
                 # all_seq_cnt[:,0] are all unique
-                lower = np.searchsorted(all_seq_cnt[:,0], start)
-                upper = np.searchsorted(all_seq_cnt[:,0], start+count)
-                self._seq_cnt[group] = np.array(all_seq_cnt[lower:upper], dtype=np.int64)
-                lower = np.sum(all_seq_cnt[0:lower, 1])#all_seq_cnt[lower, 0]
-                upper = lower + np.sum(all_seq_cnt[lower:upper, 1])
+                ilower = np.searchsorted(all_seq_cnt[:,0], start)
+                iupper = np.searchsorted(all_seq_cnt[:,0], start+count)
+                self._seq_cnt[group] = np.array(all_seq_cnt[ilower:iupper], dtype=np.int64)
+                lower = np.sum(all_seq_cnt[0:ilower, 1])
+                upper = lower + np.sum(all_seq_cnt[ilower:iupper, 1])
             else:
                 # use evt_id.seq to calculate subarray boundaries
                 # root reads the entire dataset event_id.seq, if not already
