@@ -113,7 +113,7 @@ def process_event(event_id,
         data["y_s"+suffix] = torch.tensor(plane["semantic_label"].to_numpy()).long()[~data["y_c"+suffix]]
         data["y_i"+suffix] = torch.tensor(plane["instance_label"].to_numpy()).long()[~data["y_c"+suffix]]
         data["hit_id"+suffix] = torch.tensor(plane["hit_id"].to_numpy()).int()
-        data["event_id"] = event_id 
+        data["event_id"] = event_id
 
         if profiling:
             end_t = MPI.Wtime()
