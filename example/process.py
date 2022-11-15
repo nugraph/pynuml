@@ -1,6 +1,6 @@
-import sys, os.path as osp
-sys.path.append(osp.dirname(osp.dirname(osp.realpath(__file__))))
-import pynuml, glob
+import sys
+import pynuml
+import glob
 import getopt
 
 def main(argv):
@@ -45,10 +45,10 @@ def main(argv):
 
   if output_h5:
     # output HDF5 files, one graph per group, one file per MPI process
-    out = pynuml.io.out.H5Out(outputfile, overwrite)
+    out = pynuml.io.H5Out(outputfile, overwrite)
   else:
     # output pytorch files, one graph per file
-    out = pynuml.io.out.PTOut(outputfile)
+    out = pynuml.io.PTOut(outputfile)
 
   pynuml.process.hitgraph.process_file(out, inputfile,
                                        l=pynuml.labels.standard,
