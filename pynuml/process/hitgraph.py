@@ -93,7 +93,7 @@ def process_event(event_id,
         plane_sp = evt_sp.rename(columns={"hit_id"+suffix: "hit_id"}).reset_index()
         plane_sp = plane_sp[(plane_sp.hit_id != -1)]
         k3d = ["index","hit_id"]
-        edges_3d = pd.merge(plane_sp[k3d], plane[(plane.hit_id != -1)][k3d], on="hit_id", how="inner", suffixes=["_3d", "_2d"])
+        edges_3d = pd.merge(plane_sp[k3d], plane[k3d], on="hit_id", how="inner", suffixes=["_3d", "_2d"])
         blah = edges_3d[["index_2d", "index_3d"]].to_numpy()
      
         if profiling:
@@ -112,6 +112,8 @@ def process_event(event_id,
         data["y_c"+suffix] = torch.tensor(plane["is_cosmic"].to_numpy()).bool()
         data["y_s"+suffix] = torch.tensor(plane["semantic_label"].to_numpy()).long()[~data["y_c"+suffix]]
         data["y_i"+suffix] = torch.tensor(plane["instance_label"].to_numpy()).long()[~data["y_c"+suffix]]
+        data["hit_id"+suffix] = torch.tensor(plane["hit_id"].to_numpy()).int()
+        data["event_id"] = event_id 
 
         if profiling:
             end_t = MPI.Wtime()
