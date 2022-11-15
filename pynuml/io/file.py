@@ -461,7 +461,8 @@ class File:
             if self._use_seq_cnt:
                 # use evt_id.seq_cnt to calculate subarray boundaries
                 # reads the entire dataset event_id.seq_cnt, if not already
-                if not self._whole_seq_cnt: self.read_seq_cnt()
+                if not self._whole_seq_cnt or group not in self._whole_seq_cnt.keys():
+                    self.read_seq_cnt()
                 all_seq_cnt = self._whole_seq_cnt[group]
                 # search indices of start and end in all_seq_cnt
                 # all_seq_cnt[:,0] are all unique
