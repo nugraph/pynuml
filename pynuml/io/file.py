@@ -71,8 +71,8 @@ class File:
         # number of array elements of event_table/event_id assigned to this process
         self._my_count = -1
 
-    #def __del__(self):
-    #    if self._fd: self._fd.close()
+    def __del__(self):
+        if self._fd: self._fd.close()
 
     def __len__(self):
         # inquire the number of unique event IDs in the input file
