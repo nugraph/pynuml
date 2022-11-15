@@ -38,7 +38,7 @@ class File:
 
         # self._groups is a python list, each member is a 2-element list consisting
         # of a group name, and a python list of dataset names
-        self._groups = [['event_table',['event_id']]]
+        self._groups = []
 
         # a python dictionary storing a sequence-count dataset in each group, keys
         # are group names, values are the sequence-count dataset subarrays assigned
@@ -106,7 +106,7 @@ class File:
             if "event_id.seq_cnt" in keys: keys.remove("event_id.seq_cnt")
 
         # if group does not already exist, just add it
-        if group not in self._groups[:][0]:
+        if not len(self._groups) or group not in self._groups[:][0]:
             self._groups.append([ group, keys ])
             return
 
@@ -593,6 +593,9 @@ class File:
         # This function collects all data based on event_id.seq or event_id.seq_cnt
         # into a python list containing Pandas DataFrames, one for a unique event
         # ID.
+        if not len(self._groups):
+            raise Exception('cannot build event without adding any HDF5 groups')
+
         ret_list = []
 
         if start is None: start = self._my_start
