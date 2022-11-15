@@ -95,6 +95,8 @@ class File:
     def add_group(self,
                   group: str,
                   keys: List[str] = []) -> NoReturn:
+
+        # if no keys specified, append all columns in HDF5 group
         if not keys:
             # retrieve all the dataset names of the group
             keys = list(self._fd[group].keys())
@@ -102,7 +104,20 @@ class File:
             if group != "event_table" and "event_id" in keys: keys.remove("event_id")
             if "event_id.seq" in keys: keys.remove("event_id.seq")
             if "event_id.seq_cnt" in keys: keys.remove("event_id.seq_cnt")
-        self._groups.append([ group, keys ])
+
+        # if group does not already exist, just add it
+        if not len(self._groups) or group not in self._groups[:][0]:
+            self._groups.append([ group, keys ])
+            return
+
+        # if group is already present, need to figure out whether any extra keys need to be added
+        for g, k in self._groups:
+            if g == group:
+                for key in keys:
+                    if key not in k:
+                        k.append(key)
+                return
+        raise Exception('Logic error: group not found.')
 
     def keys(self):
         return self._fd.keys()
@@ -446,7 +461,8 @@ class File:
             if self._use_seq_cnt:
                 # use evt_id.seq_cnt to calculate subarray boundaries
                 # reads the entire dataset event_id.seq_cnt, if not already
-                if not self._whole_seq_cnt: self.read_seq_cnt()
+                if not self._whole_seq_cnt or group not in self._whole_seq_cnt.keys():
+                    self.read_seq_cnt()
                 all_seq_cnt = self._whole_seq_cnt[group]
                 # search indices of start and end in all_seq_cnt
                 # all_seq_cnt[:,0] are all unique
@@ -577,6 +593,9 @@ class File:
         # This function collects all data based on event_id.seq or event_id.seq_cnt
         # into a python list containing Pandas DataFrames, one for a unique event
         # ID.
+        if not len(self._groups):
+            raise Exception('cannot build event without adding any HDF5 groups')
+
         ret_list = []
 
         if start is None: start = self._my_start
