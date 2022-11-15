@@ -38,7 +38,7 @@ class File:
 
         # self._groups is a python list, each member is a 2-element list consisting
         # of a group name, and a python list of dataset names
-        self._groups = []
+        self._groups = [['event_table',['event_id']]]
 
         # a python dictionary storing a sequence-count dataset in each group, keys
         # are group names, values are the sequence-count dataset subarrays assigned
