@@ -95,6 +95,8 @@ class File:
     def add_group(self,
                   group: str,
                   keys: List[str] = []) -> NoReturn:
+
+        # if no keys specified, append all columns in HDF5 group
         if not keys:
             # retrieve all the dataset names of the group
             keys = list(self._fd[group].keys())
@@ -102,7 +104,20 @@ class File:
             if group != "event_table" and "event_id" in keys: keys.remove("event_id")
             if "event_id.seq" in keys: keys.remove("event_id.seq")
             if "event_id.seq_cnt" in keys: keys.remove("event_id.seq_cnt")
-        self._groups.append([ group, keys ])
+
+        # if group does not already exist, just add it
+        if group not in self._groups[:][0]:
+            self._groups.append([ group, keys ])
+            return
+
+        # if group is already present, need to figure out whether any extra keys need to be added
+        for g, k in self._groups:
+            if g == group:
+                for key in keys:
+                    if key not in k:
+                        k.append(key)
+                return
+        raise Exception('Logic error: group not found.')
 
     def keys(self):
         return self._fd.keys()
