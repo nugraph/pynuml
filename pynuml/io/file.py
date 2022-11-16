@@ -494,7 +494,10 @@ class File:
             self._data[group] = {}
             for dset in datasets:
                 # read subarray into a numpy array
-                self._data[group][dset] = np.array(self._fd[group][dset][lower : upper])
+                data = np.array(self._fd[group][dset][lower : upper])
+                # convert bytes to strings
+                if data.dtype == np.object_: data = data.astype(str)
+                self._data[group][dset] = data
 
         self._my_start = start
         self._my_count = count
