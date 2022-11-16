@@ -118,7 +118,7 @@ class File:
                     if key not in k:
                         k.append(key)
                 return
-        raise Exception('Logic error: group not found.')
+        raise Exception(f'group "{group}" not found.')
 
     def keys(self):
         return self._fd.keys()
