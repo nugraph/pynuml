@@ -49,33 +49,33 @@ def standard(part: pd.DataFrame,
                 return sl, slc
 
             def electron_positron_labeler(part, parent_type):
-                if part.start_process == b'primary':
+                if part.start_process == 'primary':
                     sl = label.shower.value
                     slc = label.shower.value
-                elif abs(parent_type) == 13 and (part.start_process == b'muMinusCaptureAtRest' \
-                    or part.start_process == b'muPlusCaptureAtRest' or part.start_process == b'Decay'):
+                elif abs(parent_type) == 13 and (part.start_process == 'muMinusCaptureAtRest' \
+                    or part.start_process == 'muPlusCaptureAtRest' or part.start_process == 'Decay'):
                     sl = label.michel.value
                     slc = label.michel.value
 
-                elif part.start_process == b'conv' or part.end_process == b'conv' \
-                    or part.start_process == b'compt' or part.end_process == b'compt':
+                elif part.start_process == 'conv' or part.end_process == 'conv' \
+                    or part.start_process == 'compt' or part.end_process == 'compt':
                     if part.momentum >=th_gamma:
                         sl = label.shower.value
                         slc = label.shower.value
                     else:
                         sl = label.diffuse.value
                         slc = label.diffuse.value
-                elif part.start_process == b'eBrem' or part.end_process == b'phot' \
-                    or part.end_process == b'photonNuclear':
+                elif part.start_process == 'eBrem' or part.end_process == 'phot' \
+                    or part.end_process == 'photonNuclear':
                     sl = label.diffuse.value
                     slc = None
-                elif part.start_process == b'muIoni' or part.start_process == b'hIoni' \
-                    or part.start_process == b'eIoni':
+                elif part.start_process == 'muIoni' or part.start_process == 'hIoni' \
+                    or part.start_process == 'eIoni':
                     if part.momentum <= 0.01:
-                        if part.start_process == b'muIoni':
+                        if part.start_process == 'muIoni':
                             sl = label.muon.value
                             slc = None
-                        elif part.start_process == b'hIoni':
+                        elif part.start_process == 'hIoni':
                             if abs(parent_type) == 2212:
                                 sl = label.hadron.value
                                 if part.momentum <= 0.0015: sl = label.diffuse.value
@@ -88,9 +88,9 @@ def standard(part: pd.DataFrame,
                     else:
                         sl = label.delta.value
                         slc = label.delta.value
-                elif part.end_process == b'StepLimiter' or part.end_process == b'annihil' \
-                    or part.end_process == b'eBrem' or part.start_process == b'hBertiniCaptureAtRest' \
-                    or part.end_process == b'FastScintillation':
+                elif part.end_process == 'StepLimiter' or part.end_process == 'annihil' \
+                    or part.end_process == 'eBrem' or part.start_process == 'hBertiniCaptureAtRest' \
+                    or part.end_process == 'FastScintillation':
                     sl = label.diffuse.value
                     slc = label.diffuse.value
                 else:
@@ -99,16 +99,16 @@ def standard(part: pd.DataFrame,
                 return sl, slc
 
             def gamma_labeler(part, parent_type):
-                if part.start_process == b'conv' or part.end_process == b'conv' \
-                    or part.start_process == b'compt' or part.end_process == b'compt':
+                if part.start_process == 'conv' or part.end_process == 'conv' \
+                    or part.start_process == 'compt' or part.end_process == 'compt':
                     if part.momentum >=th_gamma:
                         sl = label.shower.value
                         slc = label.shower.value
                     else:
                         sl = label.diffuse.value
                         slc = label.diffuse.value
-                elif part.start_process == b'eBrem' or part.end_process == b'phot' \
-                    or part.end_process == b'photonNuclear':
+                elif part.start_process == 'eBrem' or part.end_process == 'phot' \
+                    or part.end_process == 'photonNuclear':
                     sl = label.diffuse.value
                     slc = None
                 else:
@@ -130,7 +130,7 @@ def standard(part: pd.DataFrame,
                 22: gamma_labeler
             }
 
-            if particle.pdgid.charge(part.type) == 0 and part.end_process == b'CoupledTransportation':
+            if particle.pdgid.charge(part.type) == 0 and part.end_process == 'CoupledTransportation':
                 # neutral particle left the volume boundary
                 sl = label.invisible.value
             else:
@@ -155,9 +155,9 @@ def standard(part: pd.DataFrame,
 
         def i(part, particles, sl):
             il, ilc = -1, None
-            if sl == label.muon.value and part.start_process == b'muIoni':
+            if sl == label.muon.value and part.start_process == 'muIoni':
                 il = part.parent_id
-            elif (sl == label.pion.value or sl == label.hadron.value) and part.start_process == b'hIoni':
+            elif (sl == label.pion.value or sl == label.hadron.value) and part.start_process == 'hIoni':
                 il = part.parent_id
             elif sl != label.diffuse.value and sl != label.delta.value and sl != label.invisible.value:
                 il = part.g4_id
