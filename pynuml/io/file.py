@@ -639,7 +639,7 @@ class File:
             #   first item: key is "index" and value is the event seq ID
             #   remaining items: key is group name and value is a Pandas DataFrame
             #   containing the dataset subarray in this group with the event ID, idx
-            ret = { "index": idx }
+            ret = { "index": self.index(idx) }
 
             # Iterate through all groups
             for group in self._data.keys():
