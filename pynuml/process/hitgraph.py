@@ -1,9 +1,11 @@
 import sys
-from typing import List
-from collections.abc import Callable
+from typing import Callable, List
 import numpy as np
 import pandas as pd
 from mpi4py import MPI
+
+import torch
+import torch_geometric as pyg
 
 from .. import io, labels, graph
 from ..util import requires_torch, requires_pyg
@@ -17,13 +19,8 @@ label_t = 0.0
 edge_t = 0.0
 profiling = False
 
-def process_event(event_id,
-                  evt: List,
-                  l,
-                  e,
-                  lower_bnd=20,
-                  **edge_args):
-    """Process an event into graphs"""
+class HitGraphProducer:
+    '''Process event into graphs'''
 
     requires_torch()
     import torch
@@ -31,113 +28,125 @@ def process_event(event_id,
     requires_pyg()
     import torch_geometric as pyg
 
-    # skip any events with no simulated hits
-    global edep1_t, edep2_t, hit_merge_t, torch_t, plane_t, label_t, edge_t
-    global profiling
-    if profiling:
-        start_t = MPI.Wtime()
+    def __init__(self,
+                 file: io.File,
+                 labeller: Callable = None,
+                 planes: List[str] = ['u','v','y'],
+                 node_pos: List[str] = ['local_wire','local_time'],
+                 pos_norm: List[float] = [0.3,0.055],
+                 node_feats: List[str] = ['integral','rms'],
+                 lower_bound: int = 20):
 
-    # get energy depositions, find max contributing particle, and ignore any hits with no truth
-    evt_edep = evt["edep_table"]
-    evt_edep = evt_edep.sort_values(by=['energy_fraction'], ascending=False, kind='mergesort').drop_duplicates('hit_id')
+        requires_torch()
+        import torch
 
-    if profiling:
-        end_t = MPI.Wtime()
-        edep1_t += end_t - start_t
-        start_t = end_t
+        requires_pyg()
+        import torch_geometric as pyg
 
-    evt_hit = evt_edep.merge(evt["hit_table"], on="hit_id", how="right")
-    evt_hit['is_cosmic'] = False
-    evt_hit.loc[evt_hit['energy_fraction'].isnull(), 'is_cosmic'] = True
-    evt_hit = evt_hit.drop("energy_fraction", axis=1)
+        self.labeller = labeller
+        self.planes = planes
+        self.node_pos = node_pos
+        self.pos_norm = pos_norm
+        self.node_feats = node_feats
+        self.lower_bound = lower_bound
 
-    if profiling:
-        end_t = MPI.Wtime()
-        edep2_t += end_t - start_t
-        start_t = end_t
+        # callback to add groups and columns to the input file
+        file.add_group('hit_table', ['hit_id','local_plane','local_time','local_wire','integral','rms'])
+        file.add_group('spacepoint_table', ['spacepoint_id','hit_id'])
+        if self.labeller:
+            file.add_group('particle_table', ['g4_id','parent_id','type','momentum','start_process','end_process'])
+            file.add_group('edep_table')
 
-    # skip events with fewer than lower_bnd simulated hits in any plane
-    for i in range(3): 
-        #filter out cosmics
-        if (evt_hit[~evt_hit['is_cosmic']].local_plane==i).sum() < lower_bnd: return
+    def __call__(self,
+                 evt: dict) -> pyg.data.HeteroData:
 
-    # get labels for each particle
-    evt_part = l(evt["particle_table"])
+        event_id = evt['index']
+        name = f'r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}'
 
-    if profiling:
-        end_t = MPI.Wtime()
-        label_t += end_t - start_t
-        start_t = end_t
+        hits = evt['hit_table']
 
-    # join the dataframes to transform particle labels into hit labels
-    evt_hit = evt_hit.merge(evt_part, on="g4_id", how="left")
+        if self.labeller:
+            edeps = evt['edep_table']
+            edeps = edeps.sort_values(by=['energy_fraction'],
+                                      ascending=False,
+                                      kind='mergesort').drop_duplicates('hit_id')
+            hits = edeps.merge(hits, on='hit_id', how='right')
+            hits['filter_label'] = ~hits['energy_fraction'].isnull()
+            hits = hits.drop('energy_fraction', axis='columns')
 
-    if profiling:
-        end_t = MPI.Wtime()
-        hit_merge_t += end_t - start_t
-        start_t = end_t
+        # skip events with fewer than lower_bnd simulated hits in any plane.
+        # note that we can't just do a pandas groupby here, because that will
+        # skip over any planes with zero hits
+        sig = hits[hits['filter_label']] if self.labeller else hits
+        for i in range(len(self.planes)):
+            if sig[sig.local_plane==i].shape[0] < self.lower_bound:
+                return name, None
 
-    planes = [ "_u", "_v", "_y" ]
-    evt_sp = evt["spacepoint_table"]
-    sim_hits = evt_hit["hit_id"].tolist()
-    data = { "n_sp": evt_sp.shape[0] }
+        # get labels for each particle
+        if self.labeller:
+            particles = self.labeller(evt['particle_table'])
+            hits = hits.merge(particles, on='g4_id', how='left')
+    
+        spacepoints = evt['spacepoint_table'].reset_index(names='index_3d')
 
-    # draw graph edges
-    for p, plane in evt_hit.groupby("local_plane"):
+        data = pyg.data.HeteroData()
 
-        # Reset indices
-        plane = plane.reset_index(drop=True).reset_index()
+        # spacepoint nodes
+        data['sp'].pos = torch.empty([spacepoints.shape[0], 0])
 
-        # build 3d edges
-        suffix = planes[p]
-        plane_sp = evt_sp.rename(columns={"hit_id"+suffix: "hit_id"}).reset_index()
-        plane_sp = plane_sp[(plane_sp.hit_id != -1)]
-        k3d = ["index","hit_id"]
-        edges_3d = pd.merge(plane_sp[k3d], plane[k3d], on="hit_id", how="inner", suffixes=["_3d", "_2d"])
-        blah = edges_3d[["index_2d", "index_3d"]].to_numpy()
-     
-        if profiling:
-            end_t = MPI.Wtime()
-            plane_t += end_t - start_t
-            start_t = end_t
+        # draw graph edges
+        for i, plane_hits in hits.groupby('local_plane'):
 
-        # Save to file
-        tmp = pyg.data.Data(
-            pos=torch.tensor(plane[["local_wire", "local_time"]].values) * torch.tensor(np.array([0.3, 0.055]))[None, :]
-        )
-        # node_feats = ["global_plane", "global_wire", "global_time", "tpc",
-        #     "local_plane", "local_wire", "local_time", "integral", "rms"]
-        node_feats = [ 'local_wire', 'local_time', 'integral', 'rms' ]
-        data["x"+suffix] = torch.tensor(plane[node_feats].to_numpy()).float()
-        data["y_c"+suffix] = torch.tensor(plane["is_cosmic"].to_numpy()).bool()
-        data["y_s"+suffix] = torch.tensor(plane["semantic_label"].to_numpy()).long()[~data["y_c"+suffix]]
-        data["y_i"+suffix] = torch.tensor(plane["instance_label"].to_numpy()).long()[~data["y_c"+suffix]]
-        data["hit_id"+suffix] = torch.tensor(plane["hit_id"].to_numpy()).int()
-        data["event_id"] = event_id
+            p = self.planes[i]
+            plane_hits = plane_hits.reset_index(drop=True).reset_index(names='index_2d')
 
-        if profiling:
-            end_t = MPI.Wtime()
-            torch_t += end_t - start_t
-            start_t = end_t
+            # node position
+            pos = torch.tensor(plane_hits[self.node_pos].values).float()
+            norm = torch.tensor(self.pos_norm).float()
+            data[p].pos = pos * norm[None,:]
 
-        tmp = e(tmp, **edge_args)
-        data["edge_index"+suffix] = tmp.edge_index
-        data["edge_index_3d"+suffix] = torch.tensor(blah).transpose(0, 1).long()
+            # node features
+            data[p].x = torch.tensor(plane_hits[self.node_feats].values).float()
 
-        if profiling:
-            end_t = MPI.Wtime()
-            edge_t += end_t - start_t
-            start_t = end_t
+            # hit indices
+            data[p].id = torch.tensor(plane_hits['hit_id'].values).long()
 
-    if data["y_s_u"].max() > 7 or data["y_s_v"].max() > 7 or data["y_s_y"].max() > 7:
-        print("\n  error: hit with invisible label found! skipping event\n")
-        return []
+            # 2D edges
+            graph.edges.delaunay(data[p])
 
-    return [[f"r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}", pyg.data.Data(**data)]]
+            # 3D edges
+            edge3d = spacepoints.merge(plane_hits[['hit_id','index_2d']].add_suffix(f'_{p}'),
+                                       on=f'hit_id_{p}',
+                                       how='inner')
+            edge3d = edge3d[[f'index_2d_{p}','index_3d']].values.transpose()
+            data[p, 'forms', 'sp'].edge_index = torch.tensor(edge3d).long()
+
+            # truth information
+            if self.labeller:
+                data[p].y_f = torch.tensor(plane_hits['filter_label'].values).bool()
+                filtered = plane_hits[plane_hits['filter_label']]
+                data[p].y_s = torch.tensor(filtered['semantic_label'].values).long()
+                if data[p].y_s.min() < 0 or data[p].y_s.max() > 7:
+                    raise Exception('invalid semantic label found!')
+                data[p].y_i = torch.tensor(filtered['instance_label'].values).long()
+
+        # if we have truth information, filter out background spacepoints
+        if self.labeller:
+            sp_filter = spacepoints
+            for p in self.planes:
+                sp_filter = sp_filter.merge(hits[['hit_id','filter_label']].add_suffix(f'_{p}'),
+                                            on=f'hit_id_{p}',
+                                            how='left')
+                sp_filter.drop(f'hit_id_{p}', axis='columns', inplace=True) # don't need index any more
+            sp_filter.fillna(True, inplace=True) # don't want to filter out based on nan values
+            mask = sp_filter[[f'filter_label_{p}' for p in self.planes]].all(axis='columns')
+            data['sp'].mask = torch.tensor(mask).bool()
+
+        return name, data
 
 def process_file(out,
                  fname: str,
-                 g = process_event,
+                 g,# = process_event,
                  l = labels.standard,
                  e = graph.edges.delaunay,
                  p: str = None,
