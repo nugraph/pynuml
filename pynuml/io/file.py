@@ -158,7 +158,7 @@ class File:
 
     def index(self, idx: int):
         """get the index for a given row"""
-        return self._index[idx - self._my_start]
+        return self._my_index[idx - self._my_start]
 
     def read_seq(self) -> NoReturn:
         for group, datasets in self._groups:
@@ -189,7 +189,7 @@ class File:
         # Note self._starts and self._counts are matter only in root process.
         # self._my_start: (== self._starts[rank]) this process's start
         # self._my_count: (== self._counts[rank]) this process's count
-        # self._index: partitioned dataset "event_table/event_id"
+        # self._my_index: partitioned dataset "event_table/event_id"
 
         comm = MPI.COMM_WORLD
         rank = comm.Get_rank()
@@ -315,7 +315,7 @@ class File:
 
         # each process reads its share of dataset "event_table/event_id" and
         # stores it in a numpy array
-        self._index = np.array(self._index[self._my_start : self._my_start + self._my_count, :])
+        self._my_index = np.array(self._index[self._my_start : self._my_start + self._my_count, :])
 
     def binary_search_min(self, key, base, nmemb):
         low = 0
@@ -499,7 +499,7 @@ class File:
         self._my_start = start
         self._my_count = count
         # read dataset "event_table/event_id" into a numpy array
-        self._index = np.array(self._index[start : start + count, :])
+        self._my_index = np.array(self._index[start : start + count, :])
 
     def read_data_all(self,
                       use_seq_cnt: bool = True,
@@ -524,7 +524,7 @@ class File:
 
         # calculate the data partitioning start indices and amounts assigned to
         # each process. Set self._starts, self._counts, self._my_start,
-        # self._my_count, and self._index
+        # self._my_count, and self._my_index
         self.data_partition()
 
         if profile:
