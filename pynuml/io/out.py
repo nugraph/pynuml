@@ -69,6 +69,7 @@ class H5Out:
                 if val.nelement() == 0: # save tensor with zero-sized dimension as a scalar 0
                     # HDF5 compound data type does not allow zero-size dimension
                     # ValueError: Zero-sized dimension specified (zero-sized dimension specified)
+                    val = val.numpy()  # convert a tensor to numpy
                     data = data + (0,)
                     field = (key, val.dtype)
                 else:
