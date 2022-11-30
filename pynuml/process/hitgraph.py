@@ -91,6 +91,11 @@ class HitGraphProducer:
 
         data = pyg.data.HeteroData()
 
+        # event metadata
+        data['metadata'].run = event_id[0]
+        data['metadata'].subrun = event_id[1]
+        data['metadata'].event = event_id[2]
+
         # spacepoint nodes
         data['sp'].pos = torch.empty([spacepoints.shape[0], 0])
 
