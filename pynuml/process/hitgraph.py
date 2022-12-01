@@ -147,6 +147,11 @@ class HitGraphProducer:
             mask = sp_filter[[f'filter_label_{p}' for p in self.planes]].all(axis='columns')
             data['sp'].mask = torch.tensor(mask).bool()
 
+            for p in self.planes:
+                plane_graph = pyg.data.Data()
+                plane_graph.pos = data[p].pos[data[p].y_f, :]
+                data[p].edge_index_filtered = graph.edges.delaunay(plane_graph).edge_index
+
         return name, data
 
 def process_file(out,
