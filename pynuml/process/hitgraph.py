@@ -280,11 +280,11 @@ def process_file(out,
         global edep1_t, edep2_t, hit_merge_t, torch_t, plane_t, label_t, edge_t
 
         my_t = np.array([open_time, read_time, build_list_time,
-                                         graph_time, write_time, total_time, edep1_t, edep2_t,
-                                         label_t, hit_merge_t, plane_t, torch_t, edge_t])
+                         graph_time, write_time, total_time, edep1_t, edep2_t,
+                         label_t, hit_merge_t, plane_t, torch_t, edge_t])
         all_t  = None
         if rank == 0:
-            all_t  = np.empty([nprocs, 14], dtype=np.double)
+            all_t = np.empty([nprocs, my_t.size], dtype=np.double)
 
         # root process gathers all timings from all processes
         comm.Gather(my_t, all_t, root=0)
