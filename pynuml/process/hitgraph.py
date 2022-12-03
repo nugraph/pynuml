@@ -1,5 +1,5 @@
 import sys
-from typing import Callable, List
+from typing import Any, Callable, List
 import numpy as np
 import pandas as pd
 from mpi4py import MPI
@@ -7,6 +7,7 @@ from mpi4py import MPI
 import torch
 import torch_geometric as pyg
 
+from .base import ProcessorBase
 from .. import io, labels, graph
 from ..util import requires_torch, requires_pyg
 
@@ -19,7 +20,7 @@ label_t = 0.0
 edge_t = 0.0
 profiling = False
 
-class HitGraphProducer:
+class HitGraphProducer(ProcessorBase):
     '''Process event into graphs'''
 
     requires_torch()
@@ -58,7 +59,7 @@ class HitGraphProducer:
             file.add_group('edep_table')
 
     def __call__(self,
-                 evt: dict) -> pyg.data.HeteroData:
+                 evt: Any) -> Any:
 
         event_id = evt['index']
         name = f'r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}'
