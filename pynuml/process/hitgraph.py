@@ -4,29 +4,12 @@ import numpy as np
 import pandas as pd
 from mpi4py import MPI
 
-import torch
-import torch_geometric as pyg
-
-from .base import ProcessorBase
 from .. import io, labels, graph
-from ..util import requires_torch, requires_pyg
-
-edep1_t = 0.0
-edep2_t = 0.0
-hit_merge_t = 0.0
-torch_t = 0.0
-plane_t = 0.0
-label_t = 0.0
-edge_t = 0.0
-profiling = False
 
 class HitGraphProducer(ProcessorBase):
     '''Process event into graphs'''
 
-    requires_torch()
     import torch
-
-    requires_pyg()
     import torch_geometric as pyg
 
     def __init__(self,
@@ -38,10 +21,8 @@ class HitGraphProducer(ProcessorBase):
                  node_feats: List[str] = ['integral','rms'],
                  lower_bound: int = 20):
 
-        requires_torch()
-        import torch
 
-        requires_pyg()
+        import torch
         import torch_geometric as pyg
 
         self.labeller = labeller
