@@ -706,3 +706,16 @@ class File:
         # print("start=",start," count=",count," num miss IDs=",num_miss)
         return ret_list
 
+    def process(self,
+                processor: Callable[[List[pd.DataFrame]], Tuple[str, Any]],
+                out: Callable[[Any, str], NoReturn]) -> NoReturn:
+        '''Process all events in this data partition'''
+        comm = MPI.COMM_WORLD
+        nprocs = comm.Get_size()
+        rank = comm.Get_rank()
+        self.read_data_all()
+        evt_list = self.build_evt()
+        for evt in evt_list:
+            name, data = processor(evt)
+            if data is not None: out(data, name)
+
