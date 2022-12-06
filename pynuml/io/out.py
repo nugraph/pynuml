@@ -2,11 +2,11 @@ import os
 import sys
 import h5py
 from mpi4py import MPI
-from ..util import requires_torch
+
+from typing import Any, NoReturn
 
 class PTOut:
-    def __init__(self, outdir):
-        requires_torch()
+    def __init__(self, outdir: str):
         self.outdir = outdir
         isExist = os.path.exists(outdir)
         if not isExist:
@@ -16,15 +16,15 @@ class PTOut:
             sys.stdout.flush()
             MPI.COMM_WORLD.Abort(1)
 
-    def save(self, obj, name):
+    def __call__(self, name: str, obj: Any) -> NoReturn:
         import torch
         torch.save(obj, os.path.join(self.outdir, name)+".pt")
 
-    def exists(self, name):
+    def exists(self, name: str) -> bool:
         return os.path.exists(os.path.join(self.outdir, name)+".pt")
 
 class H5Out:
-    def __init__(self, fname, overwrite=False):
+    def __init__(self, fname: str, overwrite: bool = False):
         # This implements one-file-per-process I/O strategy.
         # append MPI process rank to the output file name
         rank = MPI.COMM_WORLD.Get_rank()
@@ -42,7 +42,7 @@ class H5Out:
         # print(f"{rank}: creating {self.fname}")
         # sys.stdout.flush()
 
-    def save(self, obj, name):
+    def __call__(self, name: str, obj: Any) -> NoReturn:
         """
         for key, val in obj:
             # set chunk sizes to val shape, so there is only one chunk per dataset
