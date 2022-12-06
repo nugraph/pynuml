@@ -1,5 +1,5 @@
 import sys
-from typing import Any, Callable, List
+from typing import Any, Callable, List, NoReturn, Tuple
 import numpy as np
 import pandas as pd
 from mpi4py import MPI
@@ -21,6 +21,7 @@ class HitGraphProducer(ProcessorBase):
                  node_feats: List[str] = ['integral','rms'],
                  lower_bound: int = 20):
 
+        super(HitGraphProducer, self).__init__(file)
 
         import torch
         import torch_geometric as pyg
@@ -32,15 +33,18 @@ class HitGraphProducer(ProcessorBase):
         self.node_feats = node_feats
         self.lower_bound = lower_bound
 
-        # callback to add groups and columns to the input file
-        file.add_group('hit_table', ['hit_id','local_plane','local_time','local_wire','integral','rms'])
-        file.add_group('spacepoint_table', ['spacepoint_id','hit_id'])
+    @property
+    def columns(self) -> Dict[str, List[str]]:
+        groups = {
+            'hit_table': ['hit_id','local_plane','local_time','local_wire','integral','rms'],
+            'spacepoint_table': ['spacepoint_id','hit_id']
+        }
         if self.labeller:
-            file.add_group('particle_table', ['g4_id','parent_id','type','momentum','start_process','end_process'])
-            file.add_group('edep_table')
+            groups['particle_table'] = ['g4_id','parent_id','type','momentum','start_process','end_process']
+            groups['edep_table'] = []
+        return groups
 
-    def __call__(self,
-                 evt: Any) -> Any:
+    def __call__(self, evt: Any) -> Tuple[str, Any]:
 
         event_id = evt['index']
         name = f'r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}'
