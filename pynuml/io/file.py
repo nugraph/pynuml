@@ -1,9 +1,38 @@
 import sys
-from typing import Dict, List, NoReturn
 import numpy as np
 import pandas as pd
 import h5py
 from mpi4py import MPI
+
+from abc import ABC
+from typing import Any, Callable, Dict, List, NoReturn, Tuple
+
+class Event:
+    def __init__(self,
+                 index: int,
+                 event_id: np.ndarray,
+                 data: Dict[str, pd.DataFrame] = {}):
+        self.index = index
+        self.event_id = event_id
+        self.data = data
+
+    @property
+    def name(self):
+        evt = self.event_id
+        return f'r{evt[0]}_sr{evt[1]}_evt{evt[2]}'
+
+    def __setitem__(self, key: str, item: pd.DataFrame):
+        if type(key) != str:
+            raise Exception('Key must be a string!')
+        if type(item) != pd.DataFrame:
+            raise Exception('Value must be a pandas DataFrame!')
+        self.data[key] = item
+
+    def __getitem__(self, key: str):
+        if type(key) != str:
+            raise Exception('Key must be a string!')
+        return self.data[key]
+
 
 class File:
     def __init__(self, fname: str):
@@ -642,7 +671,7 @@ class File:
             #   first item: key is "index" and value is the event seq ID
             #   remaining items: key is group name and value is a Pandas DataFrame
             #   containing the dataset subarray in this group with the event ID, idx
-            ret = { "index": self.index(idx) }
+            ret = Event(idx, self.index(idx))
 
             # Iterate through all groups
             for group in self._data.keys():
@@ -707,7 +736,7 @@ class File:
         return ret_list
 
     def process(self,
-                processor: Callable[[List[pd.DataFrame]], Tuple[str, Any]],
+                processor: Callable[[Event], Tuple[str, Any]],
                 out: Callable[[Any, str], NoReturn]) -> NoReturn:
         '''Process all events in this data partition'''
         comm = MPI.COMM_WORLD
