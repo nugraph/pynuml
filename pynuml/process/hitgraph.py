@@ -1,10 +1,11 @@
 import sys
-from typing import Any, Callable, List, NoReturn, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 import numpy as np
 import pandas as pd
 from mpi4py import MPI
 
 from .. import io, labels, graph
+from .base import ProcessorBase
 
 class HitGraphProducer(ProcessorBase):
     '''Process event into graphs'''
@@ -19,12 +20,8 @@ class HitGraphProducer(ProcessorBase):
                  node_pos: List[str] = ['local_wire','local_time'],
                  pos_norm: List[float] = [0.3,0.055],
                  node_feats: List[str] = ['integral','rms'],
-                 lower_bound: int = 20):
-
-        super(HitGraphProducer, self).__init__(file)
-
-        import torch
-        import torch_geometric as pyg
+                 lower_bound: int = 20,
+                 filter: bool = False):
 
         self.labeller = labeller
         self.planes = planes
@@ -32,6 +29,11 @@ class HitGraphProducer(ProcessorBase):
         self.pos_norm = pos_norm
         self.node_feats = node_feats
         self.lower_bound = lower_bound
+
+        super(HitGraphProducer, self).__init__(file)
+
+        import torch
+        import torch_geometric as pyg
 
     @property
     def columns(self) -> Dict[str, List[str]]:
@@ -44,9 +46,9 @@ class HitGraphProducer(ProcessorBase):
             groups['edep_table'] = []
         return groups
 
-    def __call__(self, evt: Any) -> Tuple[str, Any]:
+    def __call__(self, evt: io.Event) -> Tuple[str, Any]:
 
-        event_id = evt['index']
+        event_id = evt.event_id
         name = f'r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}'
 
         hits = evt['hit_table']
@@ -66,7 +68,7 @@ class HitGraphProducer(ProcessorBase):
         sig = hits[hits['filter_label']] if self.labeller else hits
         for i in range(len(self.planes)):
             if sig[sig.local_plane==i].shape[0] < self.lower_bound:
-                return name, None
+                return evt.name, None
 
         # get labels for each particle
         if self.labeller:
@@ -138,4 +140,4 @@ class HitGraphProducer(ProcessorBase):
                 plane_graph.pos = data[p].pos[data[p].y_f, :]
                 data[p].edge_index_filtered = graph.edges.delaunay(plane_graph).edge_index
 
-        return name, data
+        return evt.name, data
