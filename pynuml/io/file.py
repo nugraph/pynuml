@@ -584,10 +584,11 @@ class File:
             # dataset as the key.
             self._data[group] = {}
             for dset in datasets:
-                # read subarray into a numpy array using independent mode (HDF5 default)
-                self._data[group][dset] = np.array(self._fd[group][dset][lower : upper])
-                # with self._fd[group][dset].collective:  # read collectively
-                    # self._data[group][dset] = self._fd[group][dset][lower : upper]
+                # read subarray into a numpy array
+                data = np.array(self._fd[group][dset][lower : upper])
+                # convert bytes to strings
+                if data.dtype == np.object_: data = data.astype(str)
+                self._data[group][dset] = data
 
             if profile:
                 time_e = MPI.Wtime()
