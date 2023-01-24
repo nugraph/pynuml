@@ -101,7 +101,7 @@ def standard(part: pd.DataFrame,
             def gamma_labeler(part, parent_type):
                 if part.start_process == 'conv' or part.end_process == 'conv' \
                     or part.start_process == 'compt' or part.end_process == 'compt':
-                    if part.momentum >=th_gamma:
+                    if part.momentum >= th_gamma:
                         sl = label.shower.value
                         slc = label.shower.value
                     else:
@@ -171,7 +171,15 @@ def standard(part: pd.DataFrame,
         if il is not None: ilc = il
         else: il, ilc = i(part, particles, sl)
 
-        ret = [ { "g4_id": part.g4_id, "parent_id": part.parent_id, "type": part.type, "start_process": part.start_process, "end_process": part.end_process, "momentum": part.momentum, "semantic_label": sl, "instance_label": il } ]
+        ret = [ {
+            "g4_id": part.g4_id,
+            "parent_id": part.parent_id,
+            "type": part.type,
+            "start_process": part.start_process,
+            "end_process": part.end_process,
+            "momentum": part.momentum,
+            "semantic_label": sl,
+            "instance_label": il } ]
         for _, row in particles[(part.g4_id==particles.parent_id)].iterrows():
             ret += walk(row, particles, depth+1, slc, ilc)
         return ret
