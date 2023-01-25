@@ -523,10 +523,7 @@ class File:
             self._data[group] = {}
             for dset in datasets:
                 # read subarray into a numpy array
-                data = np.array(self._fd[group][dset][lower : upper])
-                # convert bytes to strings
-                if data.dtype == np.object_: data = data.astype(str)
-                self._data[group][dset] = data
+                self._data[group][dset] = np.array(self._fd[group][dset][lower : upper])
 
         self._my_start = start
         self._my_count = count
@@ -585,10 +582,8 @@ class File:
             self._data[group] = {}
             for dset in datasets:
                 # read subarray into a numpy array
-                data = np.array(self._fd[group][dset][lower : upper])
-                # convert bytes to strings
-                if data.dtype == np.object_: data = data.astype(str)
-                self._data[group][dset] = data
+                self._data[group][dset] = np.array(self._fd[group][dset][lower : upper])
+
 
             if profile:
                 time_e = MPI.Wtime()
@@ -722,8 +717,9 @@ class File:
                         data = self._data[group][dataset][lower : upper]
 
                     # create a Pandas DataFrame to store the numpy array
-                    data_dataframe = pd.DataFrame(data, columns=self._cols(group, dataset))
-
+                    df = pd.DataFrame(data, columns=self._cols(group, dataset))
+                    if df[dataset].dtype == '|S64':
+                        df[dataset] = df[dataset].str.decode('utf-8')
                     dfs.append(data_dataframe)
 
                 # concate into the dictionary "ret" with group names as keys
