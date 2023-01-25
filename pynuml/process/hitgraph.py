@@ -4,14 +4,14 @@ import numpy as np
 import pandas as pd
 from mpi4py import MPI
 
+import torch
+import torch_geometric as pyg
+
 from .. import io, labels, graph
 from .base import ProcessorBase
 
 class HitGraphProducer(ProcessorBase):
     '''Process event into graphs'''
-
-    import torch
-    import torch_geometric as pyg
 
     def __init__(self,
                  file: io.File,
