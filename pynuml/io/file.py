@@ -718,8 +718,9 @@ class File:
 
                     # create a Pandas DataFrame to store the numpy array
                     df = pd.DataFrame(data, columns=self._cols(group, dataset))
-                    if df[dataset].dtype == '|S64':
-                        df[dataset] = df[dataset].str.decode('utf-8')
+                    for col in df.columns:
+                        if df[col].dtype == '|S64':
+                            df[col] = df[col].str.decode('utf-8')
                     dfs.append(df)
 
                 # concate into the dictionary "ret" with group names as keys
