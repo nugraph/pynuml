@@ -20,20 +20,16 @@ class HitGraphProducer(ProcessorBase):
                  node_pos: List[str] = ['local_wire','local_time'],
                  pos_norm: List[float] = [0.3,0.055],
                  node_feats: List[str] = ['integral','rms'],
-                 lower_bound: int = 20,
-                 filter: bool = False):
+                 lower_bound: int = 20):
 
         self.labeller = labeller
         self.planes = planes
         self.node_pos = node_pos
-        self.pos_norm = pos_norm
+        self.pos_norm = torch.tensor(pos_norm).float()
         self.node_feats = node_feats
         self.lower_bound = lower_bound
 
         super(HitGraphProducer, self).__init__(file)
-
-        import torch
-        import torch_geometric as pyg
 
     @property
     def columns(self) -> Dict[str, List[str]]:
@@ -65,9 +61,8 @@ class HitGraphProducer(ProcessorBase):
         # skip events with fewer than lower_bnd simulated hits in any plane.
         # note that we can't just do a pandas groupby here, because that will
         # skip over any planes with zero hits
-        sig = hits[hits['filter_label']] if self.labeller else hits
         for i in range(len(self.planes)):
-            if sig[sig.local_plane==i].shape[0] < self.lower_bound:
+            if hits[hits.local_plane==i].shape[0] < self.lower_bound:
                 return evt.name, None
 
         # get labels for each particle
@@ -95,8 +90,7 @@ class HitGraphProducer(ProcessorBase):
 
             # node position
             pos = torch.tensor(plane_hits[self.node_pos].values).float()
-            norm = torch.tensor(self.pos_norm).float()
-            data[p].pos = pos * norm[None,:]
+            data[p].pos = pos * self.pos_norm[None,:]
 
             # node features
             data[p].x = torch.tensor(plane_hits[self.node_feats].values).float()
@@ -122,22 +116,5 @@ class HitGraphProducer(ProcessorBase):
                 if data[p].y_s.min() < 0 or data[p].y_s.max() > 7:
                     raise Exception('invalid semantic label found!')
                 data[p].y_i = torch.tensor(filtered['instance_label'].values).long()
-
-        # if we have truth information, filter out background spacepoints
-        if self.labeller:
-            sp_filter = spacepoints
-            for p in self.planes:
-                sp_filter = sp_filter.merge(hits[['hit_id','filter_label']].add_suffix(f'_{p}'),
-                                            on=f'hit_id_{p}',
-                                            how='left')
-                sp_filter.drop(f'hit_id_{p}', axis='columns', inplace=True) # don't need index any more
-            sp_filter.fillna(True, inplace=True) # don't want to filter out based on nan values
-            mask = sp_filter[[f'filter_label_{p}' for p in self.planes]].all(axis='columns')
-            data['sp'].mask = torch.tensor(mask).bool()
-
-            for p in self.planes:
-                plane_graph = pyg.data.Data()
-                plane_graph.pos = data[p].pos[data[p].y_f, :]
-                data[p].edge_index_filtered = graph.edges.delaunay(plane_graph).edge_index
 
         return evt.name, data
