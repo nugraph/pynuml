@@ -744,5 +744,5 @@ class File:
         evt_list = self.build_evt()
         for evt in evt_list:
             name, data = processor(evt)
-            if data is not None: out(data, name)
+            if data is not None: out(name, data)
 
