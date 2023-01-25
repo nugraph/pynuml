@@ -720,7 +720,7 @@ class File:
                     df = pd.DataFrame(data, columns=self._cols(group, dataset))
                     if df[dataset].dtype == '|S64':
                         df[dataset] = df[dataset].str.decode('utf-8')
-                    dfs.append(data_dataframe)
+                    dfs.append(df)
 
                 # concate into the dictionary "ret" with group names as keys
                 ret[group] = pd.concat(dfs, axis="columns")
