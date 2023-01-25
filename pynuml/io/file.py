@@ -101,7 +101,7 @@ class File:
         self._my_count = -1
 
     def __del__(self):
-        if self._fd: self._fd.close()
+        if hasattr(self, '_fd') and self._fd: self._fd.close()
 
     def __len__(self):
         # inquire the number of unique event IDs in the input file
