@@ -72,7 +72,7 @@ class H5Out:
                     data = data + (0,)
                     field = (key, val.dtype)
                 else:
-                    val = val.numpy()  # convert a tensor to numpy
+                    val = val.numpy() # convert a tensor to numpy
                     data = data + (val,)
                     field = (key, val.dtype, val.shape)
             fields.append(field)
