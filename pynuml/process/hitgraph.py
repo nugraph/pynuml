@@ -80,7 +80,7 @@ class HitGraphProducer(ProcessorBase):
         data['metadata'].event = event_id[2]
 
         # spacepoint nodes
-        data['sp'].pos = torch.empty([spacepoints.shape[0], 0])
+        data['sp'].num_nodes = spacepoints.shape[0]
 
         # draw graph edges
         for i, plane_hits in hits.groupby('local_plane'):
