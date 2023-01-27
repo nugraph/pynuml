@@ -39,6 +39,9 @@ class H5Out:
                 MPI.COMM_WORLD.Abort(1)
         # open/create the HDF5 file
         self.f = h5py.File(self.fname, "w")
+
+        from .h5interface import H5Interface
+        self.interface = H5Interface(self.f)
         # print(f"{rank}: creating {self.fname}")
         # sys.stdout.flush()
 
@@ -58,9 +61,15 @@ class H5Out:
                 self.f.create_dataset(f"/{name}/{key}", data=val)
         """
         import numpy as np
+        import torch_geometric as pyg
         # collect and construct fields of compound data type
         fields = []
         data = ()
+
+        # special treatment for heterograph object
+        if isinstance(obj, pyg.data.HeteroData):
+            self.interface.save(name, obj)
+            return
         for key, val in obj:
             if np.isscalar(val): # only n_sp is a scalar
                 data = data + (val,)
