@@ -106,7 +106,8 @@ class HitGraphProducer(ProcessorBase):
                                        on=f'hit_id_{p}',
                                        how='inner')
             edge3d = edge3d[[f'index_2d_{p}','index_3d']].values.transpose()
-            data[p, 'forms', 'sp'].edge_index = torch.tensor(edge3d).long()
+            edge3d = torch.tensor(edge3d) if edge3d.size else torch.empty((2,0))
+            data[p, 'forms', 'sp'].edge_index = edge3d.long()
 
             # truth information
             if self.labeller:
