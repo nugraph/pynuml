@@ -21,7 +21,7 @@ class H5Interface:
                 # HDF5 compound data type does not allow zero-size dimension
                 # ValueError: Zero-sized dimension specified (zero-sized dimension specified)
                 self._data = self._data + (0,)
-                field = (key, val.dtype)
+                field = (key, val.numpy().dtype)
             else:
                 val = val.numpy() # convert a tensor to numpy
                 self._data = self._data + (val,)
