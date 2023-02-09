@@ -94,7 +94,7 @@ def standard(part: pd.DataFrame,
                     sl = label.diffuse.value
                     slc = label.diffuse.value
                 else:
-                    raise Exception('electron failed to be labeled as expected')
+                    raise Exception(f'labelling failed for electron with start process "{part.start_process}" and end process "{part.end_process}')
 
                 return sl, slc
 
@@ -112,7 +112,7 @@ def standard(part: pd.DataFrame,
                     sl = label.diffuse.value
                     slc = None
                 else:
-                    raise Exception('gamma interaction failed to be labeled as expected')
+                    raise Exception(f'labelling failed for photon with start process "{part.start_process}" and end process "{part.end_process}')
                 return sl, slc
 
             def unlabeled_particle(part, parent_type):
