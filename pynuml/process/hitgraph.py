@@ -51,12 +51,13 @@ class HitGraphProducer(ProcessorBase):
 
         if self.labeller:
             edeps = evt['edep_table']
-            edeps = edeps.sort_values(by=['energy_fraction'],
+            energy_col = 'energy' if 'energy' in edeps.columns else 'energy_fraction' # for backwards compatibility
+            edeps = edeps.sort_values(by=[energy_col],
                                       ascending=False,
                                       kind='mergesort').drop_duplicates('hit_id')
             hits = edeps.merge(hits, on='hit_id', how='right')
-            hits['filter_label'] = ~hits['energy_fraction'].isnull()
-            hits = hits.drop('energy_fraction', axis='columns')
+            hits['filter_label'] = ~hits[energy_col].isnull()
+            hits = hits.drop(energy_col, axis='columns')
 
         # skip events with fewer than lower_bnd simulated hits in any plane.
         # note that we can't just do a pandas groupby here, because that will
