@@ -719,7 +719,7 @@ class File:
                     # create a Pandas DataFrame to store the numpy array
                     df = pd.DataFrame(data, columns=self._cols(group, dataset))
                     for col in df.columns:
-                        if df[col].dtype == '|S64':
+                        if df[col].dtype == '|S64' or df[col].dtype == 'object':
                             df[col] = df[col].str.decode('utf-8')
                     dfs.append(df)
 
