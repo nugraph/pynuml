@@ -163,23 +163,21 @@ class File:
         for group, datasets in self._groups:
             try:
                 # read an HDF5 dataset into a numpy array
-                buf = self._fd.get(group+"/event_id.seq")
-                self._whole_seq[group] = np.array(buf)
+                self._whole_seq[group] = np.array(self._fd[group+"/event_id.seq"])
             except KeyError:
                 print("Error: dataset",group+"/event_id.seq does not exist")
                 sys.stdout.flush()
-                comm.Abort(1)
+                sys.exit(1)
 
     def read_seq_cnt(self) -> NoReturn:
         for group, datasets in self._groups:
             try:
                 # read an HDF5 dataset into a numpy array
-                buf = self._fd.get(group+"/event_id.seq_cnt")
-                self._whole_seq_cnt[group] = np.array(buf)
+                self._whole_seq_cnt[group] = np.array(self._fd[group+"/event_id.seq_cnt"])
             except KeyError:
                 print("Error: dataset",group+"/event_id.seq_cnt does not exist")
                 sys.stdout.flush()
-                comm.Abort(1)
+                sys.exit(1)
 
     def data_partition(self) -> NoReturn:
         # Calculate the start indices and counts of evt.seq assigned to each process
