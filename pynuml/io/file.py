@@ -136,7 +136,7 @@ class File:
             if "event_id.seq_cnt" in keys: keys.remove("event_id.seq_cnt")
 
         # if group does not already exist, just add it
-        if not len(self._groups) or group not in self._groups[:][0]:
+        if not self._groups or group not in self._groups[:][0]:
             self._groups.append([ group, keys ])
             return
 
@@ -582,7 +582,6 @@ class File:
                 # read subarray into a numpy array
                 self._data[group][dset] = np.array(self._fd[group][dset][lower : upper])
 
-
             if profile:
                 time_e = MPI.Wtime()
                 rds_time += time_e - time_s
@@ -620,7 +619,7 @@ class File:
         # This function collects all data based on event_id.seq or event_id.seq_cnt
         # into a python list containing Pandas DataFrames, one for a unique event
         # ID.
-        if not len(self._groups):
+        if not self._groups:
             raise Exception('cannot build event without adding any HDF5 groups')
 
         ret_list = []
