@@ -63,6 +63,7 @@ class File:
         # obtain metadata of dataset "event_table/event_id", later the dataset will
         # be read into self._index as a numpy array in data_partition()
         self._index = self._fd.get("event_table/event_id")
+        if self._index == None: raise Exception('event_table/event_id is not found!')
         self._num_events = self._index.shape[0]
 
         # self._groups is a python list, each member is a 2-element list consisting
