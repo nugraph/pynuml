@@ -461,9 +461,6 @@ class File:
         my_seq_cnt = np.empty([2], dtype=np.int)
         comm.Scatter(seq_cnt, my_seq_cnt, root=0)
 
-        # this process is assigned array indices from lower to upper
-        # print("group=",group," lower=",lower," upper=",upper," count=",upper-lower)
-
         # self._seq_cnt[group][:, 0] is the event ID
         # self._seq_cnt[group][:, 1] is the number of elements
         self._seq_cnt[group] = np.empty([my_seq_cnt[1], 2], dtype=np.int64)
@@ -476,6 +473,9 @@ class File:
         if self._my_count > 0:
             lower = my_seq_cnt[0]
             upper = my_seq_cnt[0] + np.sum(self._seq_cnt[group][:, 1])
+
+        # this process is assigned array indices from lower to upper
+        # print("group=",group," lower=",lower," upper=",upper," count=",upper-lower)
 
         return lower, upper
 
