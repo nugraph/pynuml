@@ -135,6 +135,11 @@ class File:
             if group != "event_table" and "event_id" in keys: keys.remove("event_id")
             if "event_id.seq" in keys: keys.remove("event_id.seq")
             if "event_id.seq_cnt" in keys: keys.remove("event_id.seq_cnt")
+        else:
+            # Check if datasets in keys are available in the file
+            for k in keys:
+                if k not in self._fd[group].keys():
+                   raise Exception(f'group "{group}" dataset "{k}" does not exist')
 
         # if group does not already exist, just add it
         if not self._groups or group not in self._groups[:][0]:
