@@ -138,14 +138,23 @@ class File:
 
         # if group does not already exist, just add it
         if not self._groups or group not in self._groups[:][0]:
+            # Check if shape[0] of all datasets are the same
+            shape0 = self._fd[group][keys[0]].shape[0]
+            for k in keys[1:]:
+                if shape0 != self._fd[group][k].shape[0]:
+                   raise Exception(f'group "{group}" dataset {k}.shape[0]={self._fd[group][k].shape[0]} inconsistent with {keys[0]}.shape[0]={shape0}')
             self._groups.append([ group, keys ])
             return
 
         # if group is already present, need to figure out whether any extra keys need to be added
         for g, k in self._groups:
             if g == group:
+                # Check if shape[0] of all datasets are the same
+                shape0 = self._fd[g][k[0]].shape[0]
                 for key in keys:
                     if key not in k:
+                        if shape0 != self._fd[g][key].shape[0]:
+                           raise Exception(f'group "{g}" dataset {key}.shape[0]={self._fd[g][key].shape[0]} inconsistent with {k[0]}.shape[0]={shape0}')
                         k.append(key)
                 return
         raise Exception(f'group "{group}" not found.')
