@@ -2,11 +2,11 @@ import os
 import sys
 import h5py
 from mpi4py import MPI
-from ..util import requires_torch
+
+from typing import Any, NoReturn
 
 class PTOut:
-    def __init__(self, outdir):
-        requires_torch()
+    def __init__(self, outdir: str):
         self.outdir = outdir
         isExist = os.path.exists(outdir)
         if not isExist:
@@ -16,15 +16,15 @@ class PTOut:
             sys.stdout.flush()
             MPI.COMM_WORLD.Abort(1)
 
-    def save(self, obj, name):
+    def __call__(self, name: str, obj: Any) -> NoReturn:
         import torch
         torch.save(obj, os.path.join(self.outdir, name)+".pt")
 
-    def exists(self, name):
+    def exists(self, name: str) -> bool:
         return os.path.exists(os.path.join(self.outdir, name)+".pt")
 
 class H5Out:
-    def __init__(self, fname, overwrite=False):
+    def __init__(self, fname: str, overwrite: bool = False):
         # This implements one-file-per-process I/O strategy.
         # append MPI process rank to the output file name
         rank = MPI.COMM_WORLD.Get_rank()
@@ -39,10 +39,13 @@ class H5Out:
                 MPI.COMM_WORLD.Abort(1)
         # open/create the HDF5 file
         self.f = h5py.File(self.fname, "w")
+
+        from .h5interface import H5Interface
+        self.interface = H5Interface(self.f)
         # print(f"{rank}: creating {self.fname}")
         # sys.stdout.flush()
 
-    def save(self, obj, name):
+    def __call__(self, name: str, obj: Any) -> NoReturn:
         """
         for key, val in obj:
             # set chunk sizes to val shape, so there is only one chunk per dataset
@@ -58,9 +61,15 @@ class H5Out:
                 self.f.create_dataset(f"/{name}/{key}", data=val)
         """
         import numpy as np
+        import torch_geometric as pyg
         # collect and construct fields of compound data type
         fields = []
         data = ()
+
+        # special treatment for heterograph object
+        if isinstance(obj, pyg.data.HeteroData):
+            self.interface.save(name, obj)
+            return
         for key, val in obj:
             if np.isscalar(val): # only n_sp is a scalar
                 data = data + (val,)
@@ -73,7 +82,7 @@ class H5Out:
                     data = data + (0,)
                     field = (key, val.dtype)
                 else:
-                    val = val.numpy()  # convert a tensor to numpy
+                    val = val.numpy() # convert a tensor to numpy
                     data = data + (val,)
                     field = (key, val.dtype, val.shape)
             fields.append(field)

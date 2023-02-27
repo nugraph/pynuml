@@ -1,9 +1,38 @@
 import sys
-from typing import Dict, List, NoReturn
 import numpy as np
 import pandas as pd
 import h5py
 from mpi4py import MPI
+
+from abc import ABC
+from typing import Any, Callable, Dict, List, NoReturn, Tuple
+
+class Event:
+    def __init__(self,
+                 index: int,
+                 event_id: np.ndarray,
+                 data: Dict[str, pd.DataFrame] = {}):
+        self.index = index
+        self.event_id = event_id
+        self.data = data
+
+    @property
+    def name(self):
+        evt = self.event_id
+        return f'r{evt[0]}_sr{evt[1]}_evt{evt[2]}'
+
+    def __setitem__(self, key: str, item: pd.DataFrame):
+        if type(key) != str:
+            raise Exception('Key must be a string!')
+        if type(item) != pd.DataFrame:
+            raise Exception('Value must be a pandas DataFrame!')
+        self.data[key] = item
+
+    def __getitem__(self, key: str):
+        if type(key) != str:
+            raise Exception('Key must be a string!')
+        return self.data[key]
+
 
 class File:
     def __init__(self, fname: str):
@@ -34,6 +63,7 @@ class File:
         # obtain metadata of dataset "event_table/event_id", later the dataset will
         # be read into self._index as a numpy array in data_partition()
         self._index = self._fd.get("event_table/event_id")
+        if self._index == None: raise Exception('event_table/event_id is not found!')
         self._num_events = self._index.shape[0]
 
         # self._groups is a python list, each member is a 2-element list consisting
@@ -72,7 +102,7 @@ class File:
         self._my_count = -1
 
     def __del__(self):
-        if self._fd: self._fd.close()
+        if hasattr(self, '_fd') and self._fd: self._fd.close()
 
     def __len__(self):
         # inquire the number of unique event IDs in the input file
@@ -90,7 +120,8 @@ class File:
     def __getitem__(self, idx: int):
         """load a single event from file"""
         self.read_data(idx, 1)
-        return self.build_evt(idx, 1)[0]
+        ret = self.build_evt(idx, 1)
+        return ret[0] if len(ret) else None
 
     def add_group(self,
                   group: str,
@@ -104,20 +135,34 @@ class File:
             if group != "event_table" and "event_id" in keys: keys.remove("event_id")
             if "event_id.seq" in keys: keys.remove("event_id.seq")
             if "event_id.seq_cnt" in keys: keys.remove("event_id.seq_cnt")
+        else:
+            # Check if datasets in keys are available in the file
+            for k in keys:
+                if k not in self._fd[group].keys():
+                   raise Exception(f'group "{group}" dataset "{k}" does not exist')
 
         # if group does not already exist, just add it
-        if not len(self._groups) or group not in self._groups[:][0]:
+        if not self._groups or group not in self._groups[:][0]:
+            # Check if shape[0] of all datasets are the same
+            shape0 = self._fd[group][keys[0]].shape[0]
+            for k in keys[1:]:
+                if shape0 != self._fd[group][k].shape[0]:
+                   raise Exception(f'group "{group}" dataset {k}.shape[0]={self._fd[group][k].shape[0]} inconsistent with {keys[0]}.shape[0]={shape0}')
             self._groups.append([ group, keys ])
             return
 
         # if group is already present, need to figure out whether any extra keys need to be added
         for g, k in self._groups:
             if g == group:
+                # Check if shape[0] of all datasets are the same
+                shape0 = self._fd[g][k[0]].shape[0]
                 for key in keys:
                     if key not in k:
+                        if shape0 != self._fd[g][key].shape[0]:
+                           raise Exception(f'group "{g}" dataset {key}.shape[0]={self._fd[g][key].shape[0]} inconsistent with {k[0]}.shape[0]={shape0}')
                         k.append(key)
                 return
-        raise Exception('Logic error: group not found.')
+        raise Exception(f'group "{group}" not found.')
 
     def keys(self):
         return self._fd.keys()
@@ -157,7 +202,7 @@ class File:
 
     def index(self, idx: int):
         """get the index for a given row"""
-        return self._index[idx - self._my_start]
+        return self._my_index[idx - self._my_start]
 
     def read_seq(self) -> NoReturn:
         for group, datasets in self._groups:
@@ -186,7 +231,7 @@ class File:
         # Note self._starts and self._counts are matter only in root process.
         # self._my_start: (== self._starts[rank]) this process's start
         # self._my_count: (== self._counts[rank]) this process's count
-        # self._index: partitioned dataset "event_table/event_id"
+        # self._my_index: partitioned dataset "event_table/event_id"
 
         comm = MPI.COMM_WORLD
         rank = comm.Get_rank()
@@ -312,7 +357,7 @@ class File:
 
         # each process reads its share of dataset "event_table/event_id" and
         # stores it in a numpy array
-        self._index = np.array(self._index[self._my_start : self._my_start + self._my_count, :])
+        self._my_index = np.array(self._index[self._my_start : self._my_start + self._my_count, :])
 
     def binary_search_min(self, key, base, nmemb):
         low = 0
@@ -431,9 +476,6 @@ class File:
         my_seq_cnt = np.empty([2], dtype=np.int)
         comm.Scatter(seq_cnt, my_seq_cnt, root=0)
 
-        # this process is assigned array indices from lower to upper
-        # print("group=",group," lower=",lower," upper=",upper," count=",upper-lower)
-
         # self._seq_cnt[group][:, 0] is the event ID
         # self._seq_cnt[group][:, 1] is the number of elements
         self._seq_cnt[group] = np.empty([my_seq_cnt[1], 2], dtype=np.int64)
@@ -446,6 +488,9 @@ class File:
         if self._my_count > 0:
             lower = my_seq_cnt[0]
             upper = my_seq_cnt[0] + np.sum(self._seq_cnt[group][:, 1])
+
+        # this process is assigned array indices from lower to upper
+        # print("group=",group," lower=",lower," upper=",upper," count=",upper-lower)
 
         return lower, upper
 
@@ -496,7 +541,7 @@ class File:
         self._my_start = start
         self._my_count = count
         # read dataset "event_table/event_id" into a numpy array
-        self._index = np.array(self._index[start : start + count, :])
+        self._my_index = np.array(self._index[start : start + count, :])
 
     def read_data_all(self,
                       use_seq_cnt: bool = True,
@@ -521,7 +566,7 @@ class File:
 
         # calculate the data partitioning start indices and amounts assigned to
         # each process. Set self._starts, self._counts, self._my_start,
-        # self._my_count, and self._index
+        # self._my_count, and self._my_index
         self.data_partition()
 
         if profile:
@@ -549,10 +594,8 @@ class File:
             # dataset as the key.
             self._data[group] = {}
             for dset in datasets:
-                # read subarray into a numpy array using independent mode (HDF5 default)
+                # read subarray into a numpy array
                 self._data[group][dset] = np.array(self._fd[group][dset][lower : upper])
-                # with self._fd[group][dset].collective:  # read collectively
-                    # self._data[group][dset] = self._fd[group][dset][lower : upper]
 
             if profile:
                 time_e = MPI.Wtime()
@@ -591,7 +634,7 @@ class File:
         # This function collects all data based on event_id.seq or event_id.seq_cnt
         # into a python list containing Pandas DataFrames, one for a unique event
         # ID.
-        if not len(self._groups):
+        if not self._groups:
             raise Exception('cannot build event without adding any HDF5 groups')
 
         ret_list = []
@@ -636,7 +679,7 @@ class File:
             #   first item: key is "index" and value is the event seq ID
             #   remaining items: key is group name and value is a Pandas DataFrame
             #   containing the dataset subarray in this group with the event ID, idx
-            ret = { "index": idx }
+            ret = Event(idx, self.index(idx))
 
             # Iterate through all groups
             for group in self._data.keys():
@@ -686,9 +729,11 @@ class File:
                         data = self._data[group][dataset][lower : upper]
 
                     # create a Pandas DataFrame to store the numpy array
-                    data_dataframe = pd.DataFrame(data, columns=self._cols(group, dataset))
-
-                    dfs.append(data_dataframe)
+                    df = pd.DataFrame(data, columns=self._cols(group, dataset))
+                    for col in df.columns:
+                        if df[col].dtype == '|S64' or df[col].dtype == 'object':
+                            df[col] = df[col].str.decode('utf-8')
+                    dfs.append(df)
 
                 # concate into the dictionary "ret" with group names as keys
                 ret[group] = pd.concat(dfs, axis="columns")
@@ -699,4 +744,17 @@ class File:
 
         # print("start=",start," count=",count," num miss IDs=",num_miss)
         return ret_list
+
+    def process(self,
+                processor: Callable[[Event], Tuple[str, Any]],
+                out: Callable[[Any, str], NoReturn]) -> NoReturn:
+        '''Process all events in this data partition'''
+        comm = MPI.COMM_WORLD
+        nprocs = comm.Get_size()
+        rank = comm.Get_rank()
+        self.read_data_all()
+        evt_list = self.build_evt()
+        for evt in evt_list:
+            name, data = processor(evt)
+            if data is not None: out(name, data)
 

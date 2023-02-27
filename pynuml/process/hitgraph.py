@@ -1,422 +1,122 @@
 import sys
-from typing import List
-from collections.abc import Callable
+from typing import Any, Callable, Dict, List, Tuple
 import numpy as np
 import pandas as pd
 from mpi4py import MPI
 
+import torch
+import torch_geometric as pyg
+
 from .. import io, labels, graph
-from ..util import requires_torch, requires_pyg
+from .base import ProcessorBase
 
-edep1_t = 0.0
-edep2_t = 0.0
-hit_merge_t = 0.0
-torch_t = 0.0
-plane_t = 0.0
-label_t = 0.0
-edge_t = 0.0
-profiling = False
+class HitGraphProducer(ProcessorBase):
+    '''Process event into graphs'''
 
-def process_event(event_id,
-                  evt: List,
-                  l,
-                  e,
-                  lower_bnd=20,
-                  **edge_args):
-    """Process an event into graphs"""
+    def __init__(self,
+                 file: io.File,
+                 labeller: Callable = None,
+                 planes: List[str] = ['u','v','y'],
+                 node_pos: List[str] = ['local_wire','local_time'],
+                 pos_norm: List[float] = [0.3,0.055],
+                 node_feats: List[str] = ['integral','rms'],
+                 lower_bound: int = 20):
 
-    requires_torch()
-    import torch
+        self.labeller = labeller
+        self.planes = planes
+        self.node_pos = node_pos
+        self.pos_norm = torch.tensor(pos_norm).float()
+        self.node_feats = node_feats
+        self.lower_bound = lower_bound
 
-    requires_pyg()
-    import torch_geometric as pyg
+        super(HitGraphProducer, self).__init__(file)
 
-    # skip any events with no simulated hits
-    global edep1_t, edep2_t, hit_merge_t, torch_t, plane_t, label_t, edge_t
-    global profiling
-    if profiling:
-        start_t = MPI.Wtime()
+    @property
+    def columns(self) -> Dict[str, List[str]]:
+        groups = {
+            'hit_table': ['hit_id','local_plane','local_time','local_wire','integral','rms'],
+            'spacepoint_table': ['spacepoint_id','hit_id']
+        }
+        if self.labeller:
+            groups['particle_table'] = ['g4_id','parent_id','type','momentum','start_process','end_process']
+            groups['edep_table'] = []
+        return groups
 
-    # get energy depositions, find max contributing particle, and ignore any hits with no truth
-    evt_edep = evt["edep_table"]
-    evt_edep = evt_edep.sort_values(by=['energy_fraction'], ascending=False, kind='mergesort').drop_duplicates('hit_id')
+    def __call__(self, evt: io.Event) -> Tuple[str, Any]:
 
-    if profiling:
-        end_t = MPI.Wtime()
-        edep1_t += end_t - start_t
-        start_t = end_t
+        event_id = evt.event_id
+        name = f'r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}'
 
-    evt_hit = evt_edep.merge(evt["hit_table"], on="hit_id", how="right")
-    evt_hit['is_cosmic'] = False
-    evt_hit.loc[evt_hit['energy_fraction'].isnull(), 'is_cosmic'] = True
-    evt_hit = evt_hit.drop("energy_fraction", axis=1)
+        hits = evt['hit_table']
 
-    if profiling:
-        end_t = MPI.Wtime()
-        edep2_t += end_t - start_t
-        start_t = end_t
+        if self.labeller:
+            edeps = evt['edep_table']
+            energy_col = 'energy' if 'energy' in edeps.columns else 'energy_fraction' # for backwards compatibility
+            edeps = edeps.sort_values(by=[energy_col],
+                                      ascending=False,
+                                      kind='mergesort').drop_duplicates('hit_id')
+            hits = edeps.merge(hits, on='hit_id', how='right')
+            hits['filter_label'] = ~hits[energy_col].isnull()
+            hits = hits.drop(energy_col, axis='columns')
 
-    # skip events with fewer than lower_bnd simulated hits in any plane
-    for i in range(3): 
-        #filter out cosmics
-        if (evt_hit[~evt_hit['is_cosmic']].local_plane==i).sum() < lower_bnd: return
+        # skip events with fewer than lower_bnd simulated hits in any plane.
+        # note that we can't just do a pandas groupby here, because that will
+        # skip over any planes with zero hits
+        for i in range(len(self.planes)):
+            if hits[hits.local_plane==i].shape[0] < self.lower_bound:
+                return evt.name, None
 
-    # get labels for each particle
-    evt_part = l(evt["particle_table"])
+        # get labels for each particle
+        if self.labeller:
+            particles = self.labeller(evt['particle_table'])
+            hits = hits.merge(particles, on='g4_id', how='left')
+    
+        spacepoints = evt['spacepoint_table'].reset_index(names='index_3d')
 
-    if profiling:
-        end_t = MPI.Wtime()
-        label_t += end_t - start_t
-        start_t = end_t
+        data = pyg.data.HeteroData()
 
-    # join the dataframes to transform particle labels into hit labels
-    evt_hit = evt_hit.merge(evt_part, on="g4_id", how="left")
+        # event metadata
+        data['metadata'].run = event_id[0]
+        data['metadata'].subrun = event_id[1]
+        data['metadata'].event = event_id[2]
 
-    if profiling:
-        end_t = MPI.Wtime()
-        hit_merge_t += end_t - start_t
-        start_t = end_t
+        # spacepoint nodes
+        data['sp'].num_nodes = spacepoints.shape[0]
 
-    planes = [ "_u", "_v", "_y" ]
-    evt_sp = evt["spacepoint_table"]
-    sim_hits = evt_hit["hit_id"].tolist()
-    data = { "n_sp": evt_sp.shape[0] }
+        # draw graph edges
+        for i, plane_hits in hits.groupby('local_plane'):
 
-    # draw graph edges
-    for p, plane in evt_hit.groupby("local_plane"):
+            p = self.planes[i]
+            plane_hits = plane_hits.reset_index(drop=True).reset_index(names='index_2d')
 
-        # Reset indices
-        plane = plane.reset_index(drop=True).reset_index()
+            # node position
+            pos = torch.tensor(plane_hits[self.node_pos].values).float()
+            data[p].pos = pos * self.pos_norm[None,:]
 
-        # build 3d edges
-        suffix = planes[p]
-        plane_sp = evt_sp.rename(columns={"hit_id"+suffix: "hit_id"}).reset_index()
-        plane_sp = plane_sp[(plane_sp.hit_id != -1)]
-        k3d = ["index","hit_id"]
-        edges_3d = pd.merge(plane_sp[k3d], plane[(plane.hit_id != -1)][k3d], on="hit_id", how="inner", suffixes=["_3d", "_2d"])
-        blah = edges_3d[["index_2d", "index_3d"]].to_numpy()
-     
-        if profiling:
-            end_t = MPI.Wtime()
-            plane_t += end_t - start_t
-            start_t = end_t
+            # node features
+            data[p].x = torch.tensor(plane_hits[self.node_feats].values).float()
 
-        # Save to file
-        tmp = pyg.data.Data(
-            pos=torch.tensor(plane[["local_wire", "local_time"]].values) * torch.tensor(np.array([0.3, 0.055]))[None, :]
-        )
-        # node_feats = ["global_plane", "global_wire", "global_time", "tpc",
-        #     "local_plane", "local_wire", "local_time", "integral", "rms"]
-        node_feats = [ 'local_wire', 'local_time', 'integral', 'rms' ]
-        data["x"+suffix] = torch.tensor(plane[node_feats].to_numpy()).float()
-        data["y_c"+suffix] = torch.tensor(plane["is_cosmic"].to_numpy()).bool()
-        data["y_s"+suffix] = torch.tensor(plane["semantic_label"].to_numpy()).long()[~data["y_c"+suffix]]
-        data["y_i"+suffix] = torch.tensor(plane["instance_label"].to_numpy()).long()[~data["y_c"+suffix]]
+            # hit indices
+            data[p].id = torch.tensor(plane_hits['hit_id'].values).long()
 
-        if profiling:
-            end_t = MPI.Wtime()
-            torch_t += end_t - start_t
-            start_t = end_t
+            # 2D edges
+            graph.edges.delaunay(data[p])
 
-        tmp = e(tmp, **edge_args)
-        data["edge_index"+suffix] = tmp.edge_index
-        data["edge_index_3d"+suffix] = torch.tensor(blah).transpose(0, 1).long()
+            # 3D edges
+            edge3d = spacepoints.merge(plane_hits[['hit_id','index_2d']].add_suffix(f'_{p}'),
+                                       on=f'hit_id_{p}',
+                                       how='inner')
+            edge3d = edge3d[[f'index_2d_{p}','index_3d']].values.transpose()
+            edge3d = torch.tensor(edge3d) if edge3d.size else torch.empty((2,0))
+            data[p, 'forms', 'sp'].edge_index = edge3d.long()
 
-        if profiling:
-            end_t = MPI.Wtime()
-            edge_t += end_t - start_t
-            start_t = end_t
+            # truth information
+            if self.labeller:
+                data[p].y_f = torch.tensor(plane_hits['filter_label'].values).bool()
+                filtered = plane_hits[plane_hits['filter_label']]
+                data[p].y_s = torch.tensor(filtered['semantic_label'].values).long()
+                if data[p].y_s.min() < 0 or data[p].y_s.max() > 7:
+                    raise Exception('invalid semantic label found!')
+                data[p].y_i = torch.tensor(filtered['instance_label'].values).long()
 
-    if data["y_s_u"].max() > 7 or data["y_s_v"].max() > 7 or data["y_s_y"].max() > 7:
-        print("\n  error: hit with invisible label found! skipping event\n")
-        return []
-
-    return [[f"r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}", pyg.data.Data(**data)]]
-
-def process_file(out,
-                 fname: str,
-                 g = process_event,
-                 l = labels.standard,
-                 e = graph.edges.delaunay,
-                 p: str = None,
-                 overwrite: bool = True,
-                 use_seq_cnt: bool = True,
-                 evt_part: int = 2,
-                 profile: bool = False) -> None:
-    '''Loop over events in file and process each into an ML object'''
-
-    requires_torch()
-    import torch
-
-    comm = MPI.COMM_WORLD
-    nprocs = comm.Get_size()
-    rank = comm.Get_rank()
-
-    global profiling
-    profiling = profile
-    if profiling:
-        comm.Barrier()
-        start_t = MPI.Wtime()
-        timing = start_t
-
-    """Process all events in a file into graphs"""
-    if rank == 0:
-        print("------------------------------------------------------------------")
-        print(f"Processing input file: {fname}")
-        if isinstance(out, io.PTOut): print(f"Output folder: {out.outdir}")
-        if isinstance(out, io.H5Out): print(f"Output file: {out.fname}")
-
-    # open input file and read dataset "/event_table/event_id.seq_cnt"
-    f = io.File(fname)
-
-    if profiling:
-        open_time = MPI.Wtime() - timing
-        comm.Barrier()
-        timing = MPI.Wtime()
-
-    # only use the following groups and datasets in them
-    f.add_group("hit_table")
-    f.add_group("particle_table", ["g4_id", "parent_id", "type", "momentum", "start_process", "end_process"])
-    f.add_group("edep_table")
-    f.add_group("spacepoint_table")
-
-    # number of unique event IDs in the input file
-    event_id_len = len(f)
-
-    # Read all data associated with event IDs assigned to this process
-    # Data read is stored as a python nested dictionary, f._data. Keys are group
-    # names, values are python dictionaries, each has names of dataset in that
-    # group as keys, and values storing dataset subarrays
-    f.read_data_all(use_seq_cnt, evt_part, profiling)
-
-    if profiling:
-        read_time = MPI.Wtime() - timing
-        comm.Barrier()
-        timing = MPI.Wtime()
-
-    # organize the assigned event data into a python list, evt_list, so data
-    # corresponding to one event ID can be used to create a graph. Each element
-    # in evt_list is a Pandas DataFrame. A graph will be created using data
-    # stored in a Pandas dataframe.
-    evt_list = f.build_evt()
-    # print("len(evt_list)=", len(evt_list))
-
-    if profiling:
-        build_list_time = MPI.Wtime() - timing
-        comm.Barrier()
-        write_time   = 0
-        graph_time   = 0
-        num_evts     = 0            # no. events assigned to this process
-        evt_size_max = 0            # max event size assigned to this process
-        evt_size_min = sys.maxsize  # min event size assigned to this process
-        evt_size_sum = 0            # sum of event sizes assigned to this process
-        num_grps     = 0            # no. graphs created by this process
-        grp_size_max = 0            # max graph size created by this process
-        grp_size_min = sys.maxsize  # min graph size created by this process
-        grp_size_sum = 0            # sum of graph sizes created by this process
-
-    # Iterate through event IDs, construct graphs and save them in files
-    for i in range(len(evt_list)):
-        if profiling:
-            timing = MPI.Wtime()
-            evt_size = 0
-            for group in evt_list[i].keys():
-                if group != "index":
-                    # size in bytes of a Pandas DataFrame
-                    evt_size += sys.getsizeof(evt_list[i][group])
-            num_evts += 1
-            evt_size_sum += evt_size
-            if evt_size > evt_size_max : evt_size_max = evt_size
-            if evt_size < evt_size_min : evt_size_min = evt_size
-
-        # retrieve event sequence ID
-        idx = evt_list[i]["index"]
-        event_id = f.index(idx)
-
-        # avoid overwriting to already existing files
-        if isinstance(out, io.PTOut):
-            import os.path as osp, os
-            out_file = f"{out.outdir}/r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}.pt"
-            if osp.exists(out_file):
-                if overwrite:
-                    os.remove(out_file)
-                else:
-                    print(f"Error: file already exists: {out_file}")
-                    sys.stdout.flush()
-                    MPI.COMM_WORLD.Abort(1)
-
-        # create graphs using data in evt_list[i], a Pandas DataFrame
-        # Note an event may create more than one graph
-        tmp = g(event_id, evt_list[i], l, e)
-
-        if profiling:
-            graph_time += MPI.Wtime() - timing
-            timing = MPI.Wtime()
-
-        if tmp is not None:
-            for name, data in tmp:
-                # print("saving", name)
-                out.save(data, name)
-                if profiling:
-                    grp_size = 0
-                    for key, val in data:
-                        # calculate size in bytes of val
-                        if (isinstance(val, torch.Tensor)):
-                            # val is a pytorch tensor
-                            grp_size += val.element_size() * val.nelement()
-                        else:
-                            grp_size += sys.getsizeof(val)
-                    num_grps += 1
-                    grp_size_sum += grp_size
-                    if grp_size > grp_size_max : grp_size_max = grp_size
-                    if grp_size < grp_size_min : grp_size_min = grp_size
-
-        if profiling:
-            write_time += MPI.Wtime() - timing
-
-    if profiling:
-        total_time = MPI.Wtime() - start_t
-
-        global edep1_t, edep2_t, hit_merge_t, torch_t, plane_t, label_t, edge_t
-
-        my_t = np.array([open_time, read_time, build_list_time,
-                         graph_time, write_time, total_time, edep1_t, edep2_t,
-                         label_t, hit_merge_t, plane_t, torch_t, edge_t])
-        all_t  = None
-        if rank == 0:
-            all_t = np.empty([nprocs, my_t.size], dtype=np.double)
-
-        # root process gathers all timings from all processes
-        comm.Gather(my_t, all_t, root=0)
-
-        if rank == 0:
-            # transport to 14 x nprocs
-            all_t = all_t.transpose(1, 0)
-            # sort along each row in order to get MAX, MIN, and Median
-            all_t = np.sort(all_t)
-
-        local_counts  = np.empty(6, dtype=np.int64)
-        global_counts = np.empty(6, dtype=np.int64)
-
-        local_counts[0] = num_evts
-        local_counts[1] = evt_size_max
-        local_counts[2] = num_grps
-        local_counts[3] = grp_size_max
-        local_counts[4] = evt_size_sum
-        local_counts[5] = grp_size_sum
-        comm.Reduce(local_counts, global_counts, op=MPI.MAX, root=0)
-        num_evts_max     = global_counts[0]
-        evt_size_max     = global_counts[1]
-        num_grps_max     = global_counts[2]
-        grp_size_max     = global_counts[3]
-        evt_size_sum_max = global_counts[4]
-        grp_size_sum_max = global_counts[5]
-
-        local_counts[0] = num_evts
-        local_counts[1] = evt_size_min
-        local_counts[2] = num_grps
-        local_counts[3] = grp_size_min
-        local_counts[4] = evt_size_sum
-        local_counts[5] = grp_size_sum
-        comm.Reduce(local_counts, global_counts, op=MPI.MIN, root=0)
-        num_evts_min     = global_counts[0]
-        evt_size_min     = global_counts[1]
-        num_grps_min     = global_counts[2]
-        grp_size_min     = global_counts[3]
-        evt_size_sum_min = global_counts[4]
-        grp_size_sum_min = global_counts[5]
-
-        local_counts[0] = num_evts
-        local_counts[1] = evt_size_sum
-        local_counts[2] = num_grps
-        local_counts[3] = grp_size_sum
-        comm.Reduce(local_counts, global_counts, op=MPI.SUM, root=0)
-        num_evts     = global_counts[0]
-        evt_size_sum = global_counts[1]
-        num_grps     = global_counts[2]
-        grp_size_sum = global_counts[3]
-
-        if rank == 0:
-            print("------------------------------------------------------------------")
-            print("Number of MPI processes          =%8d" % nprocs)
-            print("Total no. event IDs              =%8d" % event_id_len)
-            print("Total no. non-empty events       =%8d" % num_evts)
-            print("Size of all events               =%10.1f MiB" % (evt_size_sum/1048576.0))
-            if evt_part == 0:
-                print("== Use event ID based data partitioning strategy ==")
-            elif evt_part == 1:
-                print("== Use event data amount based data partitioning strategy ==")
-            elif evt_part == 2:
-                print("== Use events in particle table to partition ==")
-            if use_seq_cnt:
-                print("== Use dataset 'event_id.seq_cnt' to calculate data partitioning ==")
-            else:
-                print("== Use dataset 'event_id.seq' to calculate data partitioning ==")
-            print("Local no. events assigned     MAX=%8d   MIN=%8d   AVG=%10.1f"
-                        % (num_evts_max, num_evts_min,num_evts/nprocs))
-            print("Local indiv event size in KiB MAX=%10.1f MIN=%10.1f AVG=%10.1f"
-                        % (evt_size_max/1024.0, evt_size_min/1024.0, evt_size_sum/1024.0/num_evts))
-            print("Local sum   event size in MiB MAX=%10.1f MIN=%10.1f AVG=%10.1f"
-                        % (evt_size_sum_max/1048576.0, evt_size_sum_min/1048576.0, evt_size_sum/1048576.0/nprocs))
-            print("(MAX and MIN timings are among %d processes)" % nprocs)
-            print("------------------------------------------------------------------")
-            print("Total no.  of graphs             =%8d" % num_grps)
-            print("Size of all graphs               =%10.1f MiB" % (grp_size_sum/1048576.0))
-            print("Local no. graphs created      MAX=%8d   MIN=%8d   AVG=%10.1f"
-                        % (num_grps_max, num_grps_min, num_grps/nprocs))
-            print("Local indiv graph size in KiB MAX=%10.1f MIN=%10.1f AVG=%10.1f"
-                        % (grp_size_max/1024.0, grp_size_min/1024.0,grp_size_sum/1024.0/num_grps))
-            print("Local sum   graph size in MiB MAX=%10.1f MIN=%10.1f AVG=%10.1f"
-                        % (grp_size_sum_max/1048576.0, grp_size_sum_min/1048576.0, grp_size_sum/1048576.0/nprocs))
-            print("(MAX and MIN timings are among %d processes)" % nprocs)
-            print("---- Timing break down of graph creation phase (in seconds) ------")
-            sort_t = all_t[6]
-            print("edep grouping               time ", end='')
-            print("MAX=%8.2f  MIN=%8.2f  MID=%8.2f" % (sort_t[nprocs-1], sort_t[0], sort_t[nprocs//2]))
-            sort_t = all_t[7]
-            print("edep merge                  time ", end='')
-            print("MAX=%8.2f  MIN=%8.2f  MID=%8.2f" % (sort_t[nprocs-1], sort_t[0], sort_t[nprocs//2]))
-            sort_t = all_t[8]
-            print("labelling                   time ", end='')
-            print("MAX=%8.2f  MIN=%8.2f  MID=%8.2f" % (sort_t[nprocs-1], sort_t[0], sort_t[nprocs//2]))
-            sort_t = all_t[9]
-            print("hit_table merge             time ", end='')
-            print("MAX=%8.2f  MIN=%8.2f  MID=%8.2f" % (sort_t[nprocs-1], sort_t[0], sort_t[nprocs//2]))
-            sort_t = all_t[10]
-            print("plane build                 time ", end='')
-            print("MAX=%8.2f  MIN=%8.2f  MID=%8.2f" % (sort_t[nprocs-1], sort_t[0], sort_t[nprocs//2]))
-            sort_t = all_t[11]
-            print("torch_geometric             time ", end='')
-            print("MAX=%8.2f  MIN=%8.2f  MID=%8.2f" % (sort_t[nprocs-1], sort_t[0], sort_t[nprocs//2]))
-            sort_t = all_t[12]
-            if e == graph.edges.delaunay:
-                print("edge indexing delaunay      time ", end='')
-            elif e == graph.edges.radius:
-                print("edge indexing radius        time ", end='')
-            elif e == graph.edges.knn:
-                print("edge indexing knn           time ", end='')
-            elif e == graph.edges.window:
-                print("edge indexing window        time ", end='')
-            else:
-                print("edge indexing               time ", end='')
-            print("MAX=%8.2f  MIN=%8.2f  MID=%8.2f" % (sort_t[nprocs-1], sort_t[0], sort_t[nprocs//2]))
-            print("---- Top-level timing breakdown (in seconds) ---------------------")
-            sort_t = all_t[0]
-            print("file open                   time ", end='')
-            print("MAX=%8.2f  MIN=%8.2f  MID=%8.2f" % (sort_t[nprocs-1], sort_t[0], sort_t[nprocs//2]))
-            sort_t = all_t[1]
-            print("read from file              time ", end='')
-            print("MAX=%8.2f  MIN=%8.2f  MID=%8.2f" % (sort_t[nprocs-1], sort_t[0], sort_t[nprocs//2]))
-            sort_t = all_t[2]
-            print("build dataframe             time ", end='')
-            print("MAX=%8.2f  MIN=%8.2f  MID=%8.2f" % (sort_t[nprocs-1], sort_t[0], sort_t[nprocs//2]))
-            sort_t = all_t[3]
-            print("graph creation              time ", end='')
-            print("MAX=%8.2f  MIN=%8.2f  MID=%8.2f" % (sort_t[nprocs-1], sort_t[0], sort_t[nprocs//2]))
-            sort_t = all_t[4]
-            print("write to files              time ", end='')
-            print("MAX=%8.2f  MIN=%8.2f  MID=%8.2f" % (sort_t[nprocs-1], sort_t[0], sort_t[nprocs//2]))
-            sort_t = all_t[5]
-            print("total                       time ", end='')
-            print("MAX=%8.2f  MIN=%8.2f  MID=%8.2f" % (sort_t[nprocs-1], sort_t[0], sort_t[nprocs//2]))
-            print("(MAX and MIN timings are among %d processes)" % nprocs)
+        return evt.name, data
