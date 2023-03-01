@@ -63,7 +63,9 @@ class HitGraphProducer(ProcessorBase):
         # note that we can't just do a pandas groupby here, because that will
         # skip over any planes with zero hits
         for i in range(len(self.planes)):
-            if hits[hits.local_plane==i].shape[0] < self.lower_bound:
+            planehits = hits[hits.local_plane==i]
+            nhits = planehits.filter_label.sum() if self.labeller else planehits.shape[0]
+            if nhits < self.lower_bound:
                 return evt.name, None
 
         # get labels for each particle
