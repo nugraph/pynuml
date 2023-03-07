@@ -1,1 +1,2 @@
-from .standard import standard
+from .standard import StandardLabels
+from .simple import SimpleLabels
