@@ -11,7 +11,8 @@ class SimpleLabels(StandardLabels):
             'HIP',
             'shower',
             'michel',
-            'diffuse'
+            'diffuse',
+            'invisible'
         ]
 
     @property
