@@ -20,7 +20,8 @@ class HitGraphProducer(ProcessorBase):
                  node_pos: List[str] = ['local_wire','local_time'],
                  pos_norm: List[float] = [0.3,0.055],
                  node_feats: List[str] = ['integral','rms'],
-                 lower_bound: int = 20):
+                 lower_bound: int = 20,
+                 filter_hits: bool = False):
 
         self.labeller = labeller
         self.planes = planes
@@ -28,6 +29,7 @@ class HitGraphProducer(ProcessorBase):
         self.pos_norm = torch.tensor(pos_norm).float()
         self.node_feats = node_feats
         self.lower_bound = lower_bound
+        self.filter_hits = filter_hits
 
         super(HitGraphProducer, self).__init__(file)
 
@@ -48,16 +50,32 @@ class HitGraphProducer(ProcessorBase):
         name = f'r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}'
 
         hits = evt['hit_table']
+        spacepoints = evt['spacepoint_table']
 
-        if self.labeller:
+        # handle energy depositions
+        if self.filter_hits or self.labeller:
             edeps = evt['edep_table']
             energy_col = 'energy' if 'energy' in edeps.columns else 'energy_fraction' # for backwards compatibility
             edeps = edeps.sort_values(by=[energy_col],
                                       ascending=False,
                                       kind='mergesort').drop_duplicates('hit_id')
             hits = edeps.merge(hits, on='hit_id', how='right')
+
+            # if we're filtering out data hits, do that
+            if self.filter_hits:
+                hitmask = hits[energy_col].isnull()
+                filtered_hits = hits[hitmask].hit_id.tolist()
+                hits = hits[~hitmask].reset_index(drop=True)
+                # filter spacepoints from noise
+                cols = [ f'hit_id_{p}' for p in self.planes ]
+                spmask = spacepoints[cols].isin(filtered_hits).any(axis='columns')
+                spacepoints = spacepoints[~spmask]
+
             hits['filter_label'] = ~hits[energy_col].isnull()
             hits = hits.drop(energy_col, axis='columns')
+
+        # reset spacepoint index
+        spacepoints = spacepoints.reset_index(names='index_3d')
 
         # skip events with fewer than lower_bnd simulated hits in any plane.
         # note that we can't just do a pandas groupby here, because that will
@@ -72,8 +90,6 @@ class HitGraphProducer(ProcessorBase):
         if self.labeller:
             particles = self.labeller(evt['particle_table'])
             hits = hits.merge(particles, on='g4_id', how='left')
-    
-        spacepoints = evt['spacepoint_table'].reset_index(names='index_3d')
 
         data = pyg.data.HeteroData()
 
