@@ -255,3 +255,8 @@ class StandardLabels:
 
         labels["instance_label"] = labels.apply(alias_instance, args=[instances], axis="columns")
         return labels
+
+    def validate(self, labels: pd.Series):
+        mask = (labels < 0) | (labels >= len(self._labels) - 1)
+        if mask.any():
+            raise Exception(f'{mask.sum()} semantic labels are out of range: {labels[mask]}.')

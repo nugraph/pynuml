@@ -133,8 +133,7 @@ class HitGraphProducer(ProcessorBase):
                 data[p].y_f = torch.tensor(plane_hits['filter_label'].values).bool()
                 filtered = plane_hits[plane_hits['filter_label']]
                 data[p].y_s = torch.tensor(filtered['semantic_label'].values).long()
-                if data[p].y_s.min() < 0 or data[p].y_s.max() > 7:
-                    raise Exception('invalid semantic label found!')
+                self.labeller.validate(data[p].y_s)
                 data[p].y_i = torch.tensor(filtered['instance_label'].values).long()
 
         return evt.name, data
