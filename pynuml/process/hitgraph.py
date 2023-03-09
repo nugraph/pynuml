@@ -50,7 +50,7 @@ class HitGraphProducer(ProcessorBase):
         name = f'r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}'
 
         hits = evt['hit_table']
-        spacepoints = evt['spacepoint_table']
+        spacepoints = evt['spacepoint_table'].reset_index(drop=True)
 
         # handle energy depositions
         if self.filter_hits or self.labeller:
