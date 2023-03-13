@@ -69,7 +69,7 @@ class HitGraphProducer(ProcessorBase):
                 # filter spacepoints from noise
                 cols = [ f'hit_id_{p}' for p in self.planes ]
                 spmask = spacepoints[cols].isin(filtered_hits).any(axis='columns')
-                spacepoints = spacepoints[~spmask]
+                spacepoints = spacepoints[~spmask].reset_index(drop=True)
 
             hits['filter_label'] = ~hits[energy_col].isnull()
             hits = hits.drop(energy_col, axis='columns')
