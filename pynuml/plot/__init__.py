@@ -1,1 +1,1 @@
-import .graph
+from .graph import GraphPlot
