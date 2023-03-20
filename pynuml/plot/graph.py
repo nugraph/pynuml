@@ -124,6 +124,8 @@ class GraphPlot:
             raise Exception('"filter" must be one of "none", "true" or "pred.')
 
         fig = px.scatter(df, x='wire', y='time', facet_col='plane', **opts)
+        fig.update_yaxes(matches=None)
+        fig.update_xaxes(matches=None)
         for a in fig.layout.annotations:
           a.text = a.text.replace('plane=', '')
         fig.write_html(f'{name}.html')
