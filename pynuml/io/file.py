@@ -18,8 +18,8 @@ class Event:
 
     @property
     def name(self):
-        evt = self.event_id
-        return f'r{evt[0]}_sr{evt[1]}_evt{evt[2]}'
+        r, sr, evt = self.event_id
+        return f'r{r}_sr{sr}_evt{evt}'
 
     def __setitem__(self, key: str, item: pd.DataFrame):
         if type(key) != str:
