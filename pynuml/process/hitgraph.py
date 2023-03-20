@@ -92,7 +92,7 @@ class HitGraphProducer(ProcessorBase):
             hits = hits.merge(particles, on='g4_id', how='left')
             mask = (~hits.g4_id.isnull()) & (hits.semantic_label.isnull())
             if mask.any():
-                print(f'found {mask} orphaned hits.')
+                print(f'found {mask.sum()} orphaned hits.')
                 return evt.name, None
             del mask
 
