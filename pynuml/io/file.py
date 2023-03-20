@@ -14,7 +14,7 @@ class Event:
                  data: Dict[str, pd.DataFrame] = {}):
         self.index = index
         self.event_id = event_id
-        self.data = data
+        self.data = data.copy()
 
     @property
     def name(self):
