@@ -90,8 +90,11 @@ class HitGraphProducer(ProcessorBase):
         if self.labeller:
             particles = self.labeller(evt['particle_table'])
             hits = hits.merge(particles, on='g4_id', how='left')
-            print(f'found {((~hits.g4_id.isnull())&(hits.semantic_label.isnull())).sum()} orphaned hits.')
-            return evt.name, None
+            mask = (~hits.g4_id.isnull()) & (hits.semantic_label.isnull())
+            if mask.any():
+                print(f'found {mask} orphaned hits.')
+                return evt.name, None
+            del mask
 
         data = pyg.data.HeteroData()
 
