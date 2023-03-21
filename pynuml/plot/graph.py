@@ -127,6 +127,6 @@ class GraphPlot:
         fig.update_yaxes(matches=None)
         fig.update_xaxes(matches=None)
         for a in fig.layout.annotations:
-          a.text = a.text.replace('plane=', '')
+            a.text = a.text.replace('plane=', '')
         fig.write_html(f'{name}.html')
         fig.write_image(f'{name}.png')
