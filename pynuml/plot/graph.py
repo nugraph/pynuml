@@ -39,16 +39,22 @@ class GraphPlot:
     def plot(self,
              data: HeteroData,
              name: str,
-             target: str = 'semantic',
-             how: str = 'true',
+             target: str = 'hits',
+             how: str = 'none',
              filter: str = 'none'):
 
         if data is not self._data:
             self._data = data
             self._df = self.to_dataframe(data)
 
+        # no colour
+        if target == 'hits':
+            opts = {
+                'title': 'Graph hits'
+            }
+
         # semantic labels
-        if target == 'semantic':
+        elif target == 'semantic':
             if how == 'true':
                 opts = {
                     'title': 'True semantic labels',
@@ -110,7 +116,7 @@ class GraphPlot:
                 raise Exception('for filter labels, "how" must be one of "true" or "pred".')
 
         else:
-            raise Exception('"target" must be one of "semantic", "instance" or "filter".')
+            raise Exception('"target" must be one of "hits", "semantic", "instance" or "filter".')
 
         if filter == 'none':
             df = self._df
