@@ -1,11 +1,12 @@
 import sys
+from abc import ABC
+from typing import Any, Callable, Dict, List, Tuple
+
+import h5py
 import numpy as np
 import pandas as pd
-import h5py
 from mpi4py import MPI
 
-from abc import ABC
-from typing import Any, Callable, Dict, List, NoReturn, Tuple
 
 class Event:
     def __init__(self,
