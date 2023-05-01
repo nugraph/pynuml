@@ -21,3 +21,30 @@ If the user's simulation includes custom Geant4 physics processes that necessita
 ## ML object formation
 
 PyNuML also provides standard tools for the production of ML inputs, taking Pandas DataFrames containing event information and using them to construct a single ML input. A function that produces detector hit graphs for GNN training is provided, with 2D and 3D pixel map production in development. This single-event processing function is nested within an MPI parallel IO infrastructure to efficiently preprocess an entire dataset into ML inputs at scale, storing each object in an individual Pytorch `.pt` format or (experimentally) storing all inputs as compound data objects within a single HDF5 file.
+
+## Getting started
+
+### Dependencies
+
+In order to correctly install all dependency packages, it's recommended to work within an Anaconda installation with NuML dependencies installed. If you don't already have Anaconda installed, we recommend using [Mambaforge](https://github.com/conda-forge/miniforge). A conda environment file is available [here](https://raw.githubusercontent.com/vhewes/numl-docker/main/numl.yml), which you can install by running
+```
+conda env create -f numl.yml
+```
+This will install all dependencies necesssary for working with NuML. Once this environment is installed, it can be activated in a terminal session by running
+```
+conda activate numl
+```
+
+### Installation
+
+PyNuML can be installed via `pip` with
+```pip install pynuml```
+
+Alternatively, for development purposes one can clone the repository and install an editable version:
+
+```
+git clone https://github.com/vhewes/pynuml
+pip install -e ./pynuml
+```
+
+If installed using this method, any modifications made to your local PyNuML release will be reflected in the `pynuml` module when imported at runtime.
