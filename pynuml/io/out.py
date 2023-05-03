@@ -1,9 +1,10 @@
 import os
 import sys
+from typing import Any
+
 import h5py
 from mpi4py import MPI
 
-from typing import Any, NoReturn
 
 class PTOut:
     def __init__(self, outdir: str):
@@ -16,7 +17,7 @@ class PTOut:
             sys.stdout.flush()
             MPI.COMM_WORLD.Abort(1)
 
-    def __call__(self, name: str, obj: Any) -> NoReturn:
+    def __call__(self, name: str, obj: Any) -> None:
         import torch
         torch.save(obj, os.path.join(self.outdir, name)+".pt")
 
@@ -45,7 +46,7 @@ class H5Out:
         # print(f"{rank}: creating {self.fname}")
         # sys.stdout.flush()
 
-    def __call__(self, name: str, obj: Any) -> NoReturn:
+    def __call__(self, name: str, obj: Any) -> None:
         """
         for key, val in obj:
             # set chunk sizes to val shape, so there is only one chunk per dataset
@@ -62,6 +63,7 @@ class H5Out:
         """
         import numpy as np
         import torch_geometric as pyg
+
         # collect and construct fields of compound data type
         fields = []
         data = ()

@@ -1,5 +1,4 @@
 import enum
-from typing import NoReturn
 import pandas as pd
 
 class label(enum.Enum):

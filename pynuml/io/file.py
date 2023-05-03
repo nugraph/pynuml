@@ -1,11 +1,12 @@
 import sys
+from abc import ABC
+from typing import Any, Callable, Dict, List, Tuple
+
+import h5py
 import numpy as np
 import pandas as pd
-import h5py
 from mpi4py import MPI
 
-from abc import ABC
-from typing import Any, Callable, Dict, List, NoReturn, Tuple
 
 class Event:
     def __init__(self,
@@ -139,7 +140,7 @@ class File:
 
     def check_shape0(self,
                      group: str,
-                     keys: List[str] = []) -> NoReturn:
+                     keys: List[str] = []) -> None:
         # Check if shape[0] of all datasets in keys are of the same size
         shape0 = self._fd[group][keys[0]].shape[0]
         for k in keys[1:]:
@@ -149,7 +150,7 @@ class File:
 
     def add_group(self,
                   group: str,
-                  keys: List[str] = []) -> NoReturn:
+                  keys: List[str] = []) -> None:
 
         # if no keys specified, append all columns in HDF5 group
         if not keys:
@@ -221,7 +222,7 @@ class File:
         """get the index for a given row"""
         return self._my_index[idx - self._my_start]
 
-    def read_seq(self) -> NoReturn:
+    def read_seq(self) -> None:
         for group, datasets in self._groups:
             try:
                 # read an HDF5 dataset into a numpy array
@@ -231,7 +232,7 @@ class File:
                 sys.stdout.flush()
                 sys.exit(1)
 
-    def read_seq_cnt(self) -> NoReturn:
+    def read_seq_cnt(self) -> None:
         for group, datasets in self._groups:
             try:
                 # read an HDF5 dataset into a numpy array
@@ -241,7 +242,7 @@ class File:
                 sys.stdout.flush()
                 sys.exit(1)
 
-    def data_partition(self) -> NoReturn:
+    def data_partition(self) -> None:
         # Calculate the start indices and counts of evt.seq assigned to each process
         # self._starts: a numpy array of size nprocs
         # self._counts: a numpy array of size nprocs
@@ -513,7 +514,7 @@ class File:
 
     def read_data(self,
                   start: int,
-                  count: int) -> NoReturn:
+                  count: int) -> None:
         # (sequentially) read subarrays of all datasets in all groups that fall
         # in the range of self._seq_name, starting from 'start' and amount of 'count'
 
@@ -563,7 +564,7 @@ class File:
     def read_data_all(self,
                       use_seq_cnt: bool = True,
                       evt_part: int = 2,
-                      profile: bool = False) -> NoReturn:
+                      profile: bool = False) -> None:
         # use_seq_cnt: True  - use event.seq_cnt dataset to calculate partitioning
         #                      starts and counts
         #              False - use event.seq dataset to calculate starts and counts
@@ -764,7 +765,7 @@ class File:
 
     def process(self,
                 processor: Callable[[Event], Tuple[str, Any]],
-                out: Callable[[Any, str], NoReturn]) -> NoReturn:
+                out: Callable[[Any, str], None]) -> None:
         '''Process all events in this data partition'''
         comm = MPI.COMM_WORLD
         nprocs = comm.Get_size()
