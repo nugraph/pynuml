@@ -7,7 +7,7 @@ from mpi4py import MPI
 import torch
 import torch_geometric as pyg
 
-from .. import io, labels, graph
+from .. import io, labels
 from .base import ProcessorBase
 
 class HitGraphProducer(ProcessorBase):
@@ -30,6 +30,10 @@ class HitGraphProducer(ProcessorBase):
         self.node_feats = node_feats
         self.lower_bound = lower_bound
         self.filter_hits = filter_hits
+
+        self.transform = pyg.transforms.Compose((
+            pyg.transforms.Delaunay(),
+            pyg.transforms.FaceToEdge()))
 
         super(HitGraphProducer, self).__init__(file)
 
@@ -123,7 +127,9 @@ class HitGraphProducer(ProcessorBase):
             data[p].id = torch.tensor(plane_hits['hit_id'].values).long()
 
             # 2D edges
-            graph.edges.delaunay(data[p])
+            self.transform(data[p])
+            data[p, 'plane', p].edge_index = data[p].edge_index
+            del data[p].edge_index
 
             # 3D edges
             edge3d = spacepoints.merge(plane_hits[['hit_id','index_2d']].add_suffix(f'_{p}'),
