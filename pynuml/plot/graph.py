@@ -41,7 +41,9 @@ class GraphPlot:
              name: str,
              target: str = 'hits',
              how: str = 'none',
-             filter: str = 'none'):
+             filter: str = 'none',
+             write_png: bool = True,
+             write_html: bool = False):
 
         if data is not self._data:
             self._data = data
@@ -134,5 +136,7 @@ class GraphPlot:
         fig.update_xaxes(matches=None)
         for a in fig.layout.annotations:
             a.text = a.text.replace('plane=', '')
-        fig.write_html(f'{name}.html')
-        fig.write_image(f'{name}.png')
+        if write_html:
+            fig.write_html(f'{name}.html')
+        if write_png:
+            fig.write_image(f'{name}.png')
