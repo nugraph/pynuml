@@ -757,4 +757,3 @@ class File:
         for evt in evt_list:
             name, data = processor(evt)
             if data is not None: out(name, data)
-
