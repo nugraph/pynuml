@@ -1,5 +1,5 @@
 import sys
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable
 import numpy as np
 import pandas as pd
 from mpi4py import MPI
@@ -16,10 +16,10 @@ class HitGraphProducer(ProcessorBase):
     def __init__(self,
                  file: io.File,
                  labeller: Callable = None,
-                 planes: List[str] = ['u','v','y'],
-                 node_pos: List[str] = ['local_wire','local_time'],
-                 pos_norm: List[float] = [0.3,0.055],
-                 node_feats: List[str] = ['integral','rms'],
+                 planes: list[str] = ['u','v','y'],
+                 node_pos: list[str] = ['local_wire','local_time'],
+                 pos_norm: list[float] = [0.3,0.055],
+                 node_feats: list[str] = ['integral','rms'],
                  lower_bound: int = 20,
                  filter_hits: bool = False):
 
@@ -38,7 +38,7 @@ class HitGraphProducer(ProcessorBase):
         super(HitGraphProducer, self).__init__(file)
 
     @property
-    def columns(self) -> Dict[str, List[str]]:
+    def columns(self) -> dict[str, list[str]]:
         groups = {
             'hit_table': ['hit_id','local_plane','local_time','local_wire','integral','rms'],
             'spacepoint_table': ['spacepoint_id','hit_id']
@@ -48,7 +48,7 @@ class HitGraphProducer(ProcessorBase):
             groups['edep_table'] = []
         return groups
 
-    def __call__(self, evt: io.Event) -> Tuple[str, Any]:
+    def __call__(self, evt: io.Event) -> tuple[str, Any]:
 
         event_id = evt.event_id
         name = f'r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}'
