@@ -81,3 +81,6 @@ class H5Interface:
             else: # multi-dimension array
                 data[store][attr] = torch.as_tensor(group[dataset][:])
         return data
+
+    def keys(self) -> list[str]:
+        return list(self.f['dataset'].keys())

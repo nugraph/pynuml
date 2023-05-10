@@ -48,6 +48,13 @@ class HitGraphProducer(ProcessorBase):
             groups['edep_table'] = []
         return groups
 
+    @property
+    def metadata(self):
+        metadata = { 'planes': self.planes }
+        if laleller is not None:
+            metadata['classes'] = labeller.labels[:-1]
+        return metadata
+
     def __call__(self, evt: io.Event) -> tuple[str, Any]:
 
         event_id = evt.event_id

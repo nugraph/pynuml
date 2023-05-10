@@ -752,6 +752,8 @@ class File:
         comm = MPI.COMM_WORLD
         nprocs = comm.Get_size()
         rank = comm.Get_rank()
+        if rank == 0:
+            out.write_metadata(processor.metadata)
         self.read_data_all()
         evt_list = self.build_evt()
         for evt in evt_list:

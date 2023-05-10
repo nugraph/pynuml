@@ -20,6 +20,9 @@ class PTOut:
         import torch
         torch.save(obj, os.path.join(self.outdir, name)+".pt")
 
+    def write_metadata(metadata: dict[str, Any]) -> None:
+        raise NotImplementedError
+
     def exists(self, name: str) -> bool:
         return os.path.exists(os.path.join(self.outdir, name)+".pt")
 
@@ -91,6 +94,9 @@ class H5Out:
         ds = self.f.create_dataset(f"/{name}", shape=(), dtype=ctype, data=data)
         del ctype, fields, data, ds
 
+    def write_metadata(metadata: dict[str, Any]) -> None:
+        for key, val in metadata.items():
+            self.f[key] = val
+
     def __del__(self):
         if self.f != None: self.f.close()
-
