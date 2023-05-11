@@ -1,11 +1,12 @@
 import sys
+from abc import ABC
+from typing import Any, Callable, Dict, List, Tuple
+
+import h5py
 import numpy as np
 import pandas as pd
-import h5py
 from mpi4py import MPI
 
-from abc import ABC
-from typing import Any, Callable, Dict, List, NoReturn, Tuple
 
 class Event:
     def __init__(self,
@@ -35,7 +36,7 @@ class Event:
 
 
 class File:
-    def __init__(self, fname: str):
+    def __init__(self, fname: str, parKey: str = "/event_table/event_id"):
         self._colmap = {
             "event_table": {
                 "nu_dir": [ "nu_dir_x", "nu_dir_y", "nu_dir_z" ],
@@ -60,10 +61,24 @@ class File:
         # open the input HDF5 file in parallel
         self._fd = h5py.File(fname, "r", driver='mpio', comm=MPI.COMM_WORLD)
 
-        # obtain metadata of dataset "event_table/event_id", later the dataset will
-        # be read into self._index as a numpy array in data_partition()
-        self._index = self._fd.get("event_table/event_id")
-        if self._index == None: raise Exception('event_table/event_id is not found!')
+        # check if data partitioning key datasets exists in the file
+        if parKey not in self._fd.keys():
+            raise Exception(f'Error: dataset {parKey} is not found in file {fname}!')
+
+        # parse the name of data partitioning key
+        import os.path
+        self._parTable = os.path.dirname(parKey)
+        # remove leading '/'
+        if self._parTable[0] == '/': self._parTable = self._parTable[1:]
+
+        # extract dataset names: partitioning key, seq, and seq_cnt
+        self._par_name = os.path.basename(parKey)
+        self._seq_name = self._par_name + ".seq"
+        self._cnt_name = self._par_name + ".seq_cnt"
+
+        # obtain metadata of dataset parKey, later the dataset will be read
+        # into self._index as a numpy array in data_partition()
+        self._index = self._fd.get(parKey)
         self._num_events = self._index.shape[0]
 
         # self._groups is a python list, each member is a 2-element list consisting
@@ -95,10 +110,10 @@ class File:
         starts = None
         counts = None
 
-        # starting array index of event_table/event_id assigned to this process
+        # starting array index of parKey assigned to this process
         self._my_start = -1
 
-        # number of array elements of event_table/event_id assigned to this process
+        # number of array elements of parKey assigned to this process
         self._my_count = -1
 
     def __del__(self):
@@ -113,7 +128,7 @@ class File:
         for k1 in self._fd.keys():
             ret += f"{k1}:\n"
             for k2 in self._fd[k1].keys():
-                if "event_id.seq" in k2: continue
+                if self._seq_name in k2: continue
                 ret += f"    {k2}\n"
         return ret
 
@@ -123,43 +138,46 @@ class File:
         ret = self.build_evt(idx, 1)
         return ret[0] if len(ret) else None
 
+    def check_shape0(self,
+                     group: str,
+                     keys: List[str] = []) -> None:
+        # Check if shape[0] of all datasets in keys are of the same size
+        shape0 = self._fd[group][keys[0]].shape[0]
+        for k in keys[1:]:
+            if k == self._cnt_name: continue # exception is seq_cnt dataset
+            if shape0 != self._fd[group][k].shape[0]:
+               raise Exception(f'Dataset "/{group}/{k}" shape[0]={self._fd[group][k].shape[0]} inconsistent with {keys[0]}.shape[0]={shape0}')
+
     def add_group(self,
                   group: str,
-                  keys: List[str] = []) -> NoReturn:
+                  keys: List[str] = []) -> None:
 
         # if no keys specified, append all columns in HDF5 group
         if not keys:
             # retrieve all the dataset names of the group
             keys = list(self._fd[group].keys())
-            # dataset event_id is not needed
-            if group != "event_table" and "event_id" in keys: keys.remove("event_id")
-            if "event_id.seq" in keys: keys.remove("event_id.seq")
-            if "event_id.seq_cnt" in keys: keys.remove("event_id.seq_cnt")
+            # datasets seq and seq_cnt are not needed
+            if group != self._parTable and self._par_name in keys: keys.remove(self._par_name)
+            if self._seq_name in keys: keys.remove(self._seq_name)
+            if self._cnt_name in keys: keys.remove(self._cnt_name)
         else:
             # Check if datasets in keys are available in the file
             for k in keys:
                 if k not in self._fd[group].keys():
-                   raise Exception(f'group "{group}" dataset "{k}" does not exist')
+                   raise Exception(f'Dataset "/{group}/{k}" does not exist')
 
         # if group does not already exist, just add it
         if not self._groups or group not in self._groups[:][0]:
-            # Check if shape[0] of all datasets are the same
-            shape0 = self._fd[group][keys[0]].shape[0]
-            for k in keys[1:]:
-                if shape0 != self._fd[group][k].shape[0]:
-                   raise Exception(f'group "{group}" dataset {k}.shape[0]={self._fd[group][k].shape[0]} inconsistent with {keys[0]}.shape[0]={shape0}')
+            self.check_shape0(group, keys)
             self._groups.append([ group, keys ])
             return
 
         # if group is already present, need to figure out whether any extra keys need to be added
         for g, k in self._groups:
             if g == group:
-                # Check if shape[0] of all datasets are the same
-                shape0 = self._fd[g][k[0]].shape[0]
+                self.check_shape0(group, keys)
                 for key in keys:
                     if key not in k:
-                        if shape0 != self._fd[g][key].shape[0]:
-                           raise Exception(f'group "{g}" dataset {key}.shape[0]={self._fd[g][key].shape[0]} inconsistent with {k[0]}.shape[0]={shape0}')
                         k.append(key)
                 return
         raise Exception(f'group "{group}" not found.')
@@ -170,7 +188,7 @@ class File:
     def _cols(self,
               group: str,
               key: str) -> List[str]:
-        if key == "event_id": return [ "run", "subrun", "event" ]
+        if key == self._par_name: return [ "run", "subrun", "event" ]
         if group in self._colmap and key in self._colmap[group].keys(): return self._colmap[group][key]
         elif self._fd[group][key].shape[1]==1: return [key]
         else: return [ key+"_"+str(c) for c in range(0,self._fd[group][key].shape[1])]
@@ -180,8 +198,8 @@ class File:
                       keys: List[str] = []) -> pd.DataFrame:
         if not keys:
             keys = list(self._fd[group].keys())
-            if "event_id.seq" in keys: keys.remove("event_id.seq")
-            if "event_id.seq_cnt" in keys: keys.remove("event_id.seq_cnt")
+            if self._seq_name in keys: keys.remove(self._seq_name)
+            if self._cnt_name in keys: keys.remove(self._cnt_name)
         dfs = [ pd.DataFrame(np.array(self._fd[group][key]), columns=self._cols(group, key)) for key in keys ]
         return pd.concat(dfs, axis="columns").set_index(["run","subrun","event"])
 
@@ -190,8 +208,8 @@ class File:
                           keys: List[str] = []) -> pd.DataFrame:
         if not keys:
             keys = list(self._data[group].keys())
-            if "event_id.seq" in keys: keys.remove("event_id.seq")
-            if "event_id.seq_cnt" in keys: keys.remove("event_id.seq_cnt")
+            if self._seq_name in keys: keys.remove(self._seq_name)
+            if self._cnt_name in keys: keys.remove(self._cnt_name)
         dfs = [ pd.DataFrame(np.array(self._data[group][key]), columns=self._cols(group, key)) for key in keys ]
         df = pd.concat(dfs, axis="columns")
         evt_idx_col = []
@@ -204,34 +222,34 @@ class File:
         """get the index for a given row"""
         return self._my_index[idx - self._my_start]
 
-    def read_seq(self) -> NoReturn:
+    def read_seq(self) -> None:
         for group, datasets in self._groups:
             try:
                 # read an HDF5 dataset into a numpy array
-                self._whole_seq[group] = np.array(self._fd[group+"/event_id.seq"])
+                self._whole_seq[group] = np.array(self._fd[group+"/"+self._seq_name])
             except KeyError:
-                print("Error: dataset",group+"/event_id.seq does not exist")
+                print(f"Error: dataset {group}/{self._seq_name} does not exist")
                 sys.stdout.flush()
                 sys.exit(1)
 
-    def read_seq_cnt(self) -> NoReturn:
+    def read_seq_cnt(self) -> None:
         for group, datasets in self._groups:
             try:
                 # read an HDF5 dataset into a numpy array
-                self._whole_seq_cnt[group] = np.array(self._fd[group+"/event_id.seq_cnt"])
+                self._whole_seq_cnt[group] = np.array(self._fd[group+"/"+self._cnt_name])
             except KeyError:
-                print("Error: dataset",group+"/event_id.seq_cnt does not exist")
+                print(f"Error: dataset {group}/{self._cnt_name} does not exist")
                 sys.stdout.flush()
                 sys.exit(1)
 
-    def data_partition(self) -> NoReturn:
+    def data_partition(self) -> None:
         # Calculate the start indices and counts of evt.seq assigned to each process
         # self._starts: a numpy array of size nprocs
         # self._counts: a numpy array of size nprocs
         # Note self._starts and self._counts are matter only in root process.
         # self._my_start: (== self._starts[rank]) this process's start
         # self._my_count: (== self._counts[rank]) this process's count
-        # self._my_index: partitioned dataset "event_table/event_id"
+        # self._my_index: partitioned dataset i.e. assigned to this process
 
         comm = MPI.COMM_WORLD
         rank = comm.Get_rank()
@@ -355,8 +373,8 @@ class File:
         # (self._my_start + self._my_count - 1)
         # print("my_start=",self._my_start," my_count=",self._my_count);
 
-        # each process reads its share of dataset "event_table/event_id" and
-        # stores it in a numpy array
+        # each process reads its share of dataset and stores it in a numpy
+        # array
         self._my_index = np.array(self._index[self._my_start : self._my_start + self._my_count, :])
 
     def binary_search_min(self, key, base, nmemb):
@@ -395,7 +413,7 @@ class File:
 
         all_evt_seq = None
         if rank == 0:
-            # root reads the entire dataset event_id.seq, if not already
+            # root reads the entire dataset self._seq_name, if not already
             if not self._whole_seq: self.read_seq()
 
             all_evt_seq = self._whole_seq[group]
@@ -444,7 +462,7 @@ class File:
 
         all_seq_cnt = None
         if rank == 0:
-            # root reads the entire dataset event_id.seq_cnt, if not already
+            # root reads the entire dataset self._cnt_name, if not already
             if not self._whole_seq_cnt: self.read_seq_cnt()
 
             all_seq_cnt = self._whole_seq_cnt[group]
@@ -496,14 +514,14 @@ class File:
 
     def read_data(self,
                   start: int,
-                  count: int) -> NoReturn:
+                  count: int) -> None:
         # (sequentially) read subarrays of all datasets in all groups that fall
-        # in the range of event_id.seq starting from 'start' and amount of 'count'
+        # in the range of self._seq_name, starting from 'start' and amount of 'count'
 
         for group, datasets in self._groups:
             if self._use_seq_cnt:
                 # use evt_id.seq_cnt to calculate subarray boundaries
-                # reads the entire dataset event_id.seq_cnt, if not already
+                # reads the entire dataset self._cnt_name, if not already
                 if not self._whole_seq_cnt or group not in self._whole_seq_cnt.keys():
                     self.read_seq_cnt()
                 all_seq_cnt = self._whole_seq_cnt[group]
@@ -516,7 +534,7 @@ class File:
                 upper = lower + np.sum(all_seq_cnt[ilower:iupper, 1])
             else:
                 # use evt_id.seq to calculate subarray boundaries
-                # root reads the entire dataset event_id.seq, if not already
+                # root reads the entire dataset self._seq_name, if not already
                 if not self._whole_seq: self.read_seq()
                 all_evt_seq = self._whole_seq[group]
                 dim = len(all_evt_seq)
@@ -540,13 +558,13 @@ class File:
 
         self._my_start = start
         self._my_count = count
-        # read dataset "event_table/event_id" into a numpy array
+        # read assigned partitioning key dataset into a numpy array
         self._my_index = np.array(self._index[start : start + count, :])
 
     def read_data_all(self,
                       use_seq_cnt: bool = True,
                       evt_part: int = 2,
-                      profile: bool = False) -> NoReturn:
+                      profile: bool = False) -> None:
         # use_seq_cnt: True  - use event.seq_cnt dataset to calculate partitioning
         #                      starts and counts
         #              False - use event.seq dataset to calculate starts and counts
@@ -614,9 +632,9 @@ class File:
             if rank == 0:
                 print("---- Timing break down of the file read phase (in seconds) -------")
                 if self._use_seq_cnt:
-                    print("Use event_id.seq_cnt to calculate subarray boundaries")
+                    print(f'Use "{self._cnt_name}" to calculate subarray boundaries')
                 else:
-                    print("Use event_id.seq to calculate subarray boundaries")
+                    print(f'Use "{self._seq_name}" to calculate subarray boundaries')
 
                 print("data partitioning           time ", end='')
                 print("MAX=%8.2f  MIN=%8.2f" % (max_total_t[0], min_total_t[0]))
@@ -631,9 +649,9 @@ class File:
                   count: int = None) -> List[Dict]:
         # This process is responsible for event IDs from start to (start+count-1).
         # All data of the same event ID will be used to create a graph.
-        # This function collects all data based on event_id.seq or event_id.seq_cnt
-        # into a python list containing Pandas DataFrames, one for a unique event
-        # ID.
+        # This function collects all data based on self._seq_name, or
+        # self._cnt_name into a python list containing Pandas DataFrames, one
+        # for a unique event ID.
         if not self._groups:
             raise Exception('cannot build event without adding any HDF5 groups')
 
@@ -720,7 +738,7 @@ class File:
                 dfs = []
                 for dataset in self._data[group].keys():
                     if lower >= upper:
-                        # idx is missing from the dataset event_id.seq
+                        # idx is missing from the dataset self._seq_name,
                         # In this case, create an empty numpy array
                         data = np.array([])
                     else:
@@ -747,7 +765,7 @@ class File:
 
     def process(self,
                 processor: Callable[[Event], Tuple[str, Any]],
-                out: Callable[[Any, str], NoReturn]) -> NoReturn:
+                out: Callable[[Any, str], None]) -> None:
         '''Process all events in this data partition'''
         comm = MPI.COMM_WORLD
         nprocs = comm.Get_size()

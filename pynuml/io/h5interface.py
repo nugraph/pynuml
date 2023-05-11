@@ -1,18 +1,19 @@
-from typing import Any, NoReturn
-import numpy as np
-import h5py
+from typing import Any
 
+import h5py
+import numpy as np
 import torch
 from torch_geometric.data import Data, HeteroData
+
 
 class H5Interface:
     def __init__(self, file: h5py.File):
         self.f = file
 
-    def save_data(self, data: Data) -> NoReturn:
+    def save_data(self, data: Data) -> None:
         code
 
-    def _add_dataset(self, key: str, val: Any) -> NoReturn:
+    def _add_dataset(self, key: str, val: Any) -> None:
         if np.isscalar(val):
             self._data = self._data + (val,)
             field = (key, type(val))
@@ -28,7 +29,7 @@ class H5Interface:
                 field = (key, val.dtype, val.shape)
         self._fields.append(field)
 
-    def save_heterodata(self, data: HeteroData) -> NoReturn:
+    def save_heterodata(self, data: HeteroData) -> None:
 
         self._data = ()
         self._fields = []
@@ -51,7 +52,7 @@ class H5Interface:
             for key in data[edge].keys():
                 self._add_dataset(f'{name}/{key}', data[edge][key])
 
-    def save(self, name: str, data: Any) -> NoReturn:
+    def save(self, name: str, data: Any) -> None:
         if isinstance(data, Data):
             self.save_data(data)
         elif isinstance(data, HeteroData):
