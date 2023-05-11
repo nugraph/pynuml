@@ -1,200 +1,261 @@
-import enum
 import pandas as pd
+import particle
 
-class label(enum.Enum):
-    pion = 0
-    muon = 1
-    kaon = 2
-    hadron = 3
-    shower = 4
-    michel = 5
-    delta = 6
-    diffuse = 7
-    invisible = 8
+class StandardLabels:
 
-def standard(part: pd.DataFrame,
-             th_gamma: float = 0.02,
-             th_hadr: float = 0.2):
-    '''Standard labelling function.
+    def __init__(self,
+                 gamma_threshold: float = 0.02,
+                 hadron_threshold: float = 0.2):
+        self._labels = [
+            'pion',
+            'muon',
+            'kaon',
+            'hadron',
+            'shower',
+            'michel',
+            'delta',
+            'diffuse',
+            'invisible'
+        ]
+        self._gamma_threshold = gamma_threshold
+        self._hadron_threshold = hadron_threshold
 
-    Pion, Muon, Kaon, Hadron, EM shower, Michel electron, Delta ray,
-    diffuse activity.
-    '''
+    @property
+    def labels(self):
+        return self._labels
 
-    def walk(part, particles, depth, sl, il):
-        def s(part, particles):
-            import particle  # does this need to be in the closure?
-            sl, slc = -1, None
-            parent_type = 0 if part.parent_id == 0 else particles.type[part.parent_id]
+    def label(self, idx: int):
+        if not 0 <= label < len(self._labels):
+            raise Exception(f'index {idx} out of range for {len(self._labels)} labels.')
+        return self._labels[idx]
 
-            def pion_labeler(part, parent_type):
-                sl = label.pion.value
-                slc = None
-                return sl, slc
+    def index(self, name: str):
+        if name not in self._labels:
+            raise Exception(f'"{name}" is not the name of a class.')
+        return self._labels.index(name)
+    
+    @property
+    def pion(self):
+        return self.index('pion')
 
-            def muon_labeler(part, parent_type):
-                sl = label.muon.value
-                slc = None
-                return sl, slc
+    @property
+    def muon(self):
+        return self.index('muon')
 
-            def kaon_labeler(part, parent_type):
-                sl = label.kaon.value
-                slc = None
-                return sl, slc
+    @property
+    def kaon(self):
+        return self.index('kaon')
 
-            def neutral_pions_kaons_labeler(part, parent_type):
-                sl = label.invisible.value
-                slc = None
-                return sl, slc
+    @property
+    def hadron(self):
+        return self.index('hadron')
 
-            def electron_positron_labeler(part, parent_type):
-                if part.start_process == 'primary':
-                    sl = label.shower.value
-                    slc = label.shower.value
-                elif abs(parent_type) == 13 and (part.start_process == 'muMinusCaptureAtRest' \
-                    or part.start_process == 'muPlusCaptureAtRest' or part.start_process == 'Decay'):
-                    sl = label.michel.value
-                    slc = label.michel.value
+    @property
+    def shower(self):
+        return self.index('shower')
 
-                elif part.start_process == 'conv' or part.end_process == 'conv' \
-                    or part.start_process == 'compt' or part.end_process == 'compt':
-                    if part.momentum >=th_gamma:
-                        sl = label.shower.value
-                        slc = label.shower.value
-                    else:
-                        sl = label.diffuse.value
-                        slc = label.diffuse.value
-                elif part.start_process == 'eBrem' or part.end_process == 'phot' \
-                    or part.end_process == 'photonNuclear':
-                    sl = label.diffuse.value
+    @property
+    def michel(self):
+        return self.index('michel')
+
+    @property
+    def delta(self):
+        return self.index('delta')
+
+    @property
+    def diffuse(self):
+        return self.index('diffuse')
+    
+    @property
+    def invisible(self):
+        return self.index('invisible')
+
+    def __call__(self,
+                 part: pd.DataFrame):
+        '''Standard labelling function.
+
+        Pion, Muon, Kaon, Hadron, EM shower, Michel electron, Delta ray,
+        diffuse activity.
+        '''
+
+        def walk(part, particles, depth, sl, il):
+            def s(part, particles):
+                sl, slc = -1, None
+                parent_type = 0 if part.parent_id == 0 else particles.type[part.parent_id]
+
+                def pion_labeler(part, parent_type):
+                    sl = self.pion
                     slc = None
-                elif part.start_process == 'muIoni' or part.start_process == 'hIoni' \
-                    or part.start_process == 'eIoni':
-                    if part.momentum <= 0.01:
-                        if part.start_process == 'muIoni':
-                            sl = label.muon.value
-                            slc = None
-                        elif part.start_process == 'hIoni':
-                            if abs(parent_type) == 2212:
-                                sl = label.hadron.value
-                                if part.momentum <= 0.0015: sl = label.diffuse.value
-                            else:
-                                sl = label.pion.value
-                            slc = None
+                    return sl, slc
+
+                def muon_labeler(part, parent_type):
+                    sl = self.muon
+                    slc = None
+                    return sl, slc
+
+                def kaon_labeler(part, parent_type):
+                    sl = self.kaon
+                    slc = None
+                    return sl, slc
+
+                def neutral_pions_kaons_labeler(part, parent_type):
+                    sl = self.invisible
+                    slc = None
+                    return sl, slc
+
+                def electron_positron_labeler(part, parent_type):
+                    if part.start_process == 'primary':
+                        sl = self.shower
+                        slc = self.shower
+                    elif abs(parent_type) == 13 and (part.start_process == 'muMinusCaptureAtRest' \
+                        or part.start_process == 'muPlusCaptureAtRest' or part.start_process == 'Decay'):
+                        sl = self.michel
+                        slc = self.michel
+
+                    elif part.start_process == 'conv' or part.end_process == 'conv' \
+                        or part.start_process == 'compt' or part.end_process == 'compt':
+                        if part.momentum >= self._gamma_threshold:
+                            sl = self.shower
+                            slc = self.shower
                         else:
-                            sl = label.diffuse.value
-                            slc = None
+                            sl = self.diffuse
+                            slc = self.diffuse
+                    elif part.start_process == 'eBrem' or part.end_process == 'phot' \
+                        or part.end_process == 'photonNuclear':
+                        sl = self.diffuse
+                        slc = None
+                    elif part.start_process == 'muIoni' or part.start_process == 'hIoni' \
+                        or part.start_process == 'eIoni':
+                        if part.momentum <= 0.01:
+                            if part.start_process == 'muIoni':
+                                sl = self.muon
+                                slc = None
+                            elif part.start_process == 'hIoni':
+                                if abs(parent_type) == 2212:
+                                    sl = self.hadron
+                                    if part.momentum <= 0.0015: sl = self.diffuse
+                                else:
+                                    sl = self.pion
+                                slc = None
+                            else:
+                                sl = self.diffuse
+                                slc = None
+                        else:
+                            sl = self.delta
+                            slc = self.delta
+                    elif part.end_process == 'StepLimiter' or part.end_process == 'annihil' \
+                        or part.end_process == 'eBrem' or part.start_process == 'hBertiniCaptureAtRest' \
+                        or part.end_process == 'FastScintillation':
+                        sl = self.diffuse
+                        slc = self.diffuse
                     else:
-                        sl = label.delta.value
-                        slc = label.delta.value
-                elif part.end_process == 'StepLimiter' or part.end_process == 'annihil' \
-                    or part.end_process == 'eBrem' or part.start_process == 'hBertiniCaptureAtRest' \
-                    or part.end_process == 'FastScintillation':
-                    sl = label.diffuse.value
-                    slc = label.diffuse.value
+                        raise Exception(f'labelling failed for electron with start process "{part.start_process}" and end process "{part.end_process}')
+
+                    return sl, slc
+
+                def gamma_labeler(part, parent_type):
+                    if part.start_process == 'conv' or part.end_process == 'conv' \
+                        or part.start_process == 'compt' or part.end_process == 'compt':
+                        if part.momentum >= self._gamma_threshold:
+                            sl = self.shower
+                            slc = self.shower
+                        else:
+                            sl = self.diffuse
+                            slc = self.diffuse
+                    elif part.start_process == 'eBrem' or part.end_process == 'phot' \
+                        or part.end_process == 'photonNuclear':
+                        sl = self.diffuse
+                        slc = None
+                    else:
+                        raise Exception(f'labelling failed for photon with start process "{part.start_process}" and end process "{part.end_process}')
+                    return sl, slc
+
+                def unlabeled_particle(part, parent_type):
+                    raise Exception(f"particle not recognised! PDG code {part.type}, parent PDG code {parent_type}, start process {part.start_process}, end process {part.end_process}")
+
+                particle_processor = {
+                    211: pion_labeler,
+                    13: muon_labeler,
+                    321: kaon_labeler,
+                    111: neutral_pions_kaons_labeler,
+                    311: neutral_pions_kaons_labeler,
+                    310: neutral_pions_kaons_labeler,
+                    130: neutral_pions_kaons_labeler,
+                    11: electron_positron_labeler,
+                    22: gamma_labeler
+                }
+
+                if particle.pdgid.charge(part.type) == 0 and part.end_process == 'CoupledTransportation':
+                    # neutral particle left the volume boundary
+                    sl = self.invisible
                 else:
-                    raise Exception(f'labelling failed for electron with start process "{part.start_process}" and end process "{part.end_process}')
+                    func = particle_processor.get(abs(part.type), lambda x ,y: (-1, None))
+                    sl, slc = func(part, parent_type)
+
+                # baryon interactions - hadron or diffuse
+                if (particle.pdgid.is_baryon(part.type) and particle.pdgid.charge(part.type) == 0) \
+                    or particle.pdgid.is_nucleus(part.type):
+                    sl = self.diffuse
+                if particle.pdgid.is_baryon(part.type) and particle.pdgid.charge(part.type) != 0:
+                    if abs(part.type) == 2212 and part.momentum >= self._hadron_threshold:
+                        sl = self.hadron
+                    else:
+                        sl = self.diffuse
+
+                # check to make sure particle was assigned
+                if sl == -1:
+                    unlabeled_particle(part, parent_type)
 
                 return sl, slc
 
-            def gamma_labeler(part, parent_type):
-                if part.start_process == 'conv' or part.end_process == 'conv' \
-                    or part.start_process == 'compt' or part.end_process == 'compt':
-                    if part.momentum >= th_gamma:
-                        sl = label.shower.value
-                        slc = label.shower.value
-                    else:
-                        sl = label.diffuse.value
-                        slc = label.diffuse.value
-                elif part.start_process == 'eBrem' or part.end_process == 'phot' \
-                    or part.end_process == 'photonNuclear':
-                    sl = label.diffuse.value
-                    slc = None
-                else:
-                    raise Exception(f'labelling failed for photon with start process "{part.start_process}" and end process "{part.end_process}')
-                return sl, slc
+            def i(part, particles, sl):
+                il, ilc = -1, None
+                if sl == self.muon and part.start_process == 'muIoni':
+                    il = part.parent_id
+                elif (sl == self.pion or sl == self.hadron) and part.start_process == 'hIoni':
+                    il = part.parent_id
+                elif sl != self.diffuse and sl != self.delta and sl != self.invisible:
+                    il = part.g4_id
+                    if sl == self.shower: ilc = il
+                    if sl == self.michel: ilc = il
+                return il, ilc
 
-            def unlabeled_particle(part, parent_type):
-                raise Exception(f"particle not recognised! PDG code {part.type}, parent PDG code {parent_type}, start process {part.start_process}, end process {part.end_process}")
+            if sl is not None: slc = sl
+            else: sl, slc = s(part, particles)
 
-            particle_processor = {
-                211: pion_labeler,
-                13: muon_labeler,
-                321: kaon_labeler,
-                111: neutral_pions_kaons_labeler,
-                311: neutral_pions_kaons_labeler,
-                310: neutral_pions_kaons_labeler,
-                130: neutral_pions_kaons_labeler,
-                11: electron_positron_labeler,
-                22: gamma_labeler
-            }
+            if il is not None: ilc = il
+            else: il, ilc = i(part, particles, sl)
 
-            if particle.pdgid.charge(part.type) == 0 and part.end_process == 'CoupledTransportation':
-                # neutral particle left the volume boundary
-                sl = label.invisible.value
-            else:
-                func = particle_processor.get(abs(part.type), lambda x ,y: (-1, None))
-                sl, slc = func(part, parent_type)
+            ret = [ {
+                "g4_id": part.g4_id,
+                "parent_id": part.parent_id,
+                "type": part.type,
+                "start_process": part.start_process,
+                "end_process": part.end_process,
+                "momentum": part.momentum,
+                "semantic_label": sl,
+                "instance_label": il } ]
+            for _, row in particles[(part.g4_id==particles.parent_id)].iterrows():
+                ret += walk(row, particles, depth+1, slc, ilc)
+            return ret
 
-            # baryon interactions - hadron or diffuse
-            if (particle.pdgid.is_baryon(part.type) and particle.pdgid.charge(part.type) == 0) \
-                or particle.pdgid.is_nucleus(part.type):
-                sl = label.diffuse.value
-            if particle.pdgid.is_baryon(part.type) and particle.pdgid.charge(part.type) != 0:
-                if abs(part.type) == 2212 and part.momentum >= th_hadr:
-                    sl = label.hadron.value
-                else:
-                    sl = label.diffuse.value
+        ret = []
+        part = part.set_index("g4_id", drop=False)
+        primaries = part[(part.parent_id==0)]
+        for _, primary in primaries.iterrows():
+            ret += walk(primary, part, 0, None, None)
+        if len(ret)==0: return
+        labels = pd.DataFrame.from_dict(ret)
+        instances = { val: i for i, val in enumerate(labels[(labels.instance_label>=0)].instance_label.unique()) }
 
-            # check to make sure particle was assigned
-            if sl == -1:
-                unlabeled_particle(part, parent_type)
+        def alias_instance(row, instances):
+            if row.instance_label == -1: return -1
+            return instances[row.instance_label]
 
-            return sl, slc
+        labels["instance_label"] = labels.apply(alias_instance, args=[instances], axis="columns")
+        return labels
 
-        def i(part, particles, sl):
-            il, ilc = -1, None
-            if sl == label.muon.value and part.start_process == 'muIoni':
-                il = part.parent_id
-            elif (sl == label.pion.value or sl == label.hadron.value) and part.start_process == 'hIoni':
-                il = part.parent_id
-            elif sl != label.diffuse.value and sl != label.delta.value and sl != label.invisible.value:
-                il = part.g4_id
-                if sl == label.shower.value: ilc = il
-                if sl == label.michel.value: ilc = il
-            return il, ilc
-
-        if sl is not None: slc = sl
-        else: sl, slc = s(part, particles)
-
-        if il is not None: ilc = il
-        else: il, ilc = i(part, particles, sl)
-
-        ret = [ {
-            "g4_id": part.g4_id,
-            "parent_id": part.parent_id,
-            "type": part.type,
-            "start_process": part.start_process,
-            "end_process": part.end_process,
-            "momentum": part.momentum,
-            "semantic_label": sl,
-            "instance_label": il } ]
-        for _, row in particles[(part.g4_id==particles.parent_id)].iterrows():
-            ret += walk(row, particles, depth+1, slc, ilc)
-        return ret
-
-    ret = []
-    part = part.set_index("g4_id", drop=False)
-    primaries = part[(part.parent_id==0)]
-    for _, primary in primaries.iterrows():
-        ret += walk(primary, part, 0, None, None)
-    if len(ret)==0: return
-    labels = pd.DataFrame.from_dict(ret)
-    instances = { val: i for i, val in enumerate(labels[(labels.instance_label>=0)].instance_label.unique()) }
-
-    def alias_instance(row, instances):
-        if row.instance_label == -1: return -1
-        return instances[row.instance_label]
-
-    labels["instance_label"] = labels.apply(alias_instance, args=[instances], axis="columns")
-    return labels
+    def validate(self, labels: pd.Series):
+        mask = (labels < 0) | (labels >= len(self._labels) - 1)
+        if mask.any():
+            raise Exception(f'{mask.sum()} semantic labels are out of range: {labels[mask]}.')

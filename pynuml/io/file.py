@@ -15,12 +15,12 @@ class Event:
                  data: Dict[str, pd.DataFrame] = {}):
         self.index = index
         self.event_id = event_id
-        self.data = data
+        self.data = data.copy()
 
     @property
     def name(self):
-        evt = self.event_id
-        return f'r{evt[0]}_sr{evt[1]}_evt{evt[2]}'
+        r, sr, evt = self.event_id
+        return f'r{r}_sr{sr}_evt{evt}'
 
     def __setitem__(self, key: str, item: pd.DataFrame):
         if type(key) != str:
@@ -770,9 +770,10 @@ class File:
         comm = MPI.COMM_WORLD
         nprocs = comm.Get_size()
         rank = comm.Get_rank()
+        if rank == 0:
+            out.write_metadata(processor.metadata)
         self.read_data_all()
         evt_list = self.build_evt()
         for evt in evt_list:
             name, data = processor(evt)
             if data is not None: out(name, data)
-

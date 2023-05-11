@@ -62,13 +62,13 @@ class H5Interface:
 
         # create a scalar dataset of compound data type
         ctype = np.dtype(self._fields)
-        ds = self.f.create_dataset(f'/{name}', shape=(), dtype=ctype, data=self._data)
+        ds = self.f.create_dataset(f'/dataset/{name}', shape=(), dtype=ctype, data=self._data)
         del ctype, self._fields, self._data, ds
 
     def load_heterodata(self, name: str) -> HeteroData:
         data = HeteroData()
         # Read the whole dataset idx, dataset name is self.groups[idx]
-        group = self.f[name][()]
+        group = self.f[f'dataset/{name}'][()]
         dataset_names = group.dtype.names
 
         for dataset in dataset_names:
@@ -82,3 +82,6 @@ class H5Interface:
             else: # multi-dimension array
                 data[store][attr] = torch.as_tensor(group[dataset][:])
         return data
+
+    def keys(self) -> list[str]:
+        return list(self.f['dataset'].keys())

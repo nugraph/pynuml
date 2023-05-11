@@ -1,5 +1,5 @@
 import sys
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable
 import numpy as np
 import pandas as pd
 from mpi4py import MPI
@@ -7,7 +7,7 @@ from mpi4py import MPI
 import torch
 import torch_geometric as pyg
 
-from .. import io, labels, graph
+from .. import io, labels
 from .base import ProcessorBase
 
 class HitGraphProducer(ProcessorBase):
@@ -16,11 +16,12 @@ class HitGraphProducer(ProcessorBase):
     def __init__(self,
                  file: io.File,
                  labeller: Callable = None,
-                 planes: List[str] = ['u','v','y'],
-                 node_pos: List[str] = ['local_wire','local_time'],
-                 pos_norm: List[float] = [0.3,0.055],
-                 node_feats: List[str] = ['integral','rms'],
-                 lower_bound: int = 20):
+                 planes: list[str] = ['u','v','y'],
+                 node_pos: list[str] = ['local_wire','local_time'],
+                 pos_norm: list[float] = [0.3,0.055],
+                 node_feats: list[str] = ['integral','rms'],
+                 lower_bound: int = 20,
+                 filter_hits: bool = False):
 
         self.labeller = labeller
         self.planes = planes
@@ -28,11 +29,16 @@ class HitGraphProducer(ProcessorBase):
         self.pos_norm = torch.tensor(pos_norm).float()
         self.node_feats = node_feats
         self.lower_bound = lower_bound
+        self.filter_hits = filter_hits
+
+        self.transform = pyg.transforms.Compose((
+            pyg.transforms.Delaunay(),
+            pyg.transforms.FaceToEdge()))
 
         super(HitGraphProducer, self).__init__(file)
 
     @property
-    def columns(self) -> Dict[str, List[str]]:
+    def columns(self) -> dict[str, list[str]]:
         groups = {
             'hit_table': ['hit_id','local_plane','local_time','local_wire','integral','rms'],
             'spacepoint_table': ['spacepoint_id','hit_id']
@@ -42,36 +48,64 @@ class HitGraphProducer(ProcessorBase):
             groups['edep_table'] = []
         return groups
 
-    def __call__(self, evt: io.Event) -> Tuple[str, Any]:
+    @property
+    def metadata(self):
+        metadata = { 'planes': self.planes }
+        if laleller is not None:
+            metadata['classes'] = labeller.labels[:-1]
+        return metadata
+
+    def __call__(self, evt: io.Event) -> tuple[str, Any]:
 
         event_id = evt.event_id
         name = f'r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}'
 
         hits = evt['hit_table']
+        spacepoints = evt['spacepoint_table'].reset_index(drop=True)
 
-        if self.labeller:
+        # handle energy depositions
+        if self.filter_hits or self.labeller:
             edeps = evt['edep_table']
             energy_col = 'energy' if 'energy' in edeps.columns else 'energy_fraction' # for backwards compatibility
             edeps = edeps.sort_values(by=[energy_col],
                                       ascending=False,
                                       kind='mergesort').drop_duplicates('hit_id')
             hits = edeps.merge(hits, on='hit_id', how='right')
+
+            # if we're filtering out data hits, do that
+            if self.filter_hits:
+                hitmask = hits[energy_col].isnull()
+                filtered_hits = hits[hitmask].hit_id.tolist()
+                hits = hits[~hitmask].reset_index(drop=True)
+                # filter spacepoints from noise
+                cols = [ f'hit_id_{p}' for p in self.planes ]
+                spmask = spacepoints[cols].isin(filtered_hits).any(axis='columns')
+                spacepoints = spacepoints[~spmask].reset_index(drop=True)
+
             hits['filter_label'] = ~hits[energy_col].isnull()
             hits = hits.drop(energy_col, axis='columns')
+
+        # reset spacepoint index
+        spacepoints = spacepoints.reset_index(names='index_3d')
 
         # skip events with fewer than lower_bnd simulated hits in any plane.
         # note that we can't just do a pandas groupby here, because that will
         # skip over any planes with zero hits
         for i in range(len(self.planes)):
-            if hits[hits.local_plane==i].shape[0] < self.lower_bound:
+            planehits = hits[hits.local_plane==i]
+            nhits = planehits.filter_label.sum() if self.labeller else planehits.shape[0]
+            if nhits < self.lower_bound:
                 return evt.name, None
 
         # get labels for each particle
         if self.labeller:
             particles = self.labeller(evt['particle_table'])
             hits = hits.merge(particles, on='g4_id', how='left')
-    
-        spacepoints = evt['spacepoint_table'].reset_index(names='index_3d')
+            mask = (~hits.g4_id.isnull()) & (hits.semantic_label.isnull())
+            if mask.any():
+                print(f'found {mask.sum()} orphaned hits.')
+                return evt.name, None
+            del mask
 
         data = pyg.data.HeteroData()
 
@@ -81,7 +115,7 @@ class HitGraphProducer(ProcessorBase):
         data['metadata'].event = event_id[2]
 
         # spacepoint nodes
-        data['sp'].num_nodes = spacepoints.shape[0]
+        data['sp'].x = torch.empty(spacepoints.shape[0], 0)
 
         # draw graph edges
         for i, plane_hits in hits.groupby('local_plane'):
@@ -100,7 +134,9 @@ class HitGraphProducer(ProcessorBase):
             data[p].id = torch.tensor(plane_hits['hit_id'].values).long()
 
             # 2D edges
-            graph.edges.delaunay(data[p])
+            self.transform(data[p])
+            data[p, 'plane', p].edge_index = data[p].edge_index
+            del data[p].edge_index
 
             # 3D edges
             edge3d = spacepoints.merge(plane_hits[['hit_id','index_2d']].add_suffix(f'_{p}'),
@@ -108,15 +144,14 @@ class HitGraphProducer(ProcessorBase):
                                        how='inner')
             edge3d = edge3d[[f'index_2d_{p}','index_3d']].values.transpose()
             edge3d = torch.tensor(edge3d) if edge3d.size else torch.empty((2,0))
-            data[p, 'forms', 'sp'].edge_index = edge3d.long()
+            data[p, 'nexus', 'sp'].edge_index = edge3d.long()
 
             # truth information
             if self.labeller:
                 data[p].y_f = torch.tensor(plane_hits['filter_label'].values).bool()
                 filtered = plane_hits[plane_hits['filter_label']]
                 data[p].y_s = torch.tensor(filtered['semantic_label'].values).long()
-                if data[p].y_s.min() < 0 or data[p].y_s.max() > 7:
-                    raise Exception('invalid semantic label found!')
+                self.labeller.validate(data[p].y_s)
                 data[p].y_i = torch.tensor(filtered['instance_label'].values).long()
 
         return evt.name, data
