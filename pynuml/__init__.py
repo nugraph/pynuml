@@ -1,4 +1,4 @@
-from . import io
-from . import labels
-from . import process
-from . import plot
+import pynuml.io
+import pynuml.labels
+import pynuml.process
+import pynuml.plot
