@@ -7,14 +7,13 @@ from mpi4py import MPI
 import torch
 import torch_geometric as pyg
 
-from .. import io, labels
 from .base import ProcessorBase
 
 class HitGraphProducer(ProcessorBase):
     '''Process event into graphs'''
 
     def __init__(self,
-                 file: io.File,
+                 file: 'pynuml.io.File',
                  labeller: Callable = None,
                  planes: list[str] = ['u','v','y'],
                  node_pos: list[str] = ['local_wire','local_time'],
@@ -55,7 +54,7 @@ class HitGraphProducer(ProcessorBase):
             metadata['classes'] = labeller.labels[:-1]
         return metadata
 
-    def __call__(self, evt: io.Event) -> tuple[str, Any]:
+    def __call__(self, evt: 'pynuml.io.Event') -> tuple[str, Any]:
 
         event_id = evt.event_id
         name = f'r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}'
