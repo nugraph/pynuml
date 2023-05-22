@@ -50,8 +50,8 @@ class HitGraphProducer(ProcessorBase):
     @property
     def metadata(self):
         metadata = { 'planes': self.planes }
-        if laleller is not None:
-            metadata['classes'] = labeller.labels[:-1]
+        if self.labeller is not None:
+            metadata['classes'] = self.labeller.labels[:-1]
         return metadata
 
     def __call__(self, evt: 'pynuml.io.Event') -> tuple[str, Any]:
