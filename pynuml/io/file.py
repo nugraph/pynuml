@@ -254,8 +254,8 @@ class File:
         comm = MPI.COMM_WORLD
         rank = comm.Get_rank()
         nprocs = comm.Get_size()
-        self._starts = np.zeros(nprocs, dtype=np.int)
-        self._counts = np.zeros(nprocs, dtype=np.int)
+        self._starts = np.zeros(nprocs, dtype=int)
+        self._counts = np.zeros(nprocs, dtype=int)
 
         if rank == 0:
             if self._use_seq_cnt:
@@ -283,7 +283,7 @@ class File:
                 # a dataset have the same event ID. It is also possible some event
                 # IDs contain no data. First, we accumulate numbers of events
                 # across all groups
-                evt_size = np.zeros(num_events, dtype=np.int)
+                evt_size = np.zeros(num_events, dtype=int)
                 if self._use_seq_cnt:
                     for group, datasets in self._groups:
                         seq_cnt = self._whole_seq_cnt[group]
@@ -361,10 +361,10 @@ class File:
         # All processes participate the collective communication, scatter.
         # Root distributes start and count to all processes. Note only root process
         # uses self._starts and self._counts.
-        start_count = np.empty([nprocs, 2], dtype=np.int)
+        start_count = np.empty([nprocs, 2], dtype=int)
         start_count[:, 0] = self._starts[:]
         start_count[:, 1] = self._counts[:]
-        recvbuf = np.empty(2, dtype=np.int)
+        recvbuf = np.empty(2, dtype=int)
         comm.Scatter(start_count, recvbuf, root=0)
         self._my_start = recvbuf[0]
         self._my_count = recvbuf[1]
@@ -407,9 +407,9 @@ class File:
         rank = comm.Get_rank()
         nprocs = comm.Get_size()
 
-        displ  = np.zeros([nprocs], dtype=np.int)
-        count  = np.zeros([nprocs], dtype=np.int)
-        bounds = np.zeros([nprocs, 2], dtype=np.int)
+        displ  = np.zeros([nprocs], dtype=int)
+        count  = np.zeros([nprocs], dtype=int)
+        bounds = np.zeros([nprocs, 2], dtype=int)
 
         all_evt_seq = None
         if rank == 0:
@@ -428,7 +428,7 @@ class File:
                 displ[i] = bounds[i, 0]
                 count[i] = bounds[i, 1] - bounds[i, 0] + 1
 
-        lower_upper = np.empty([2], dtype=np.int)
+        lower_upper = np.empty([2], dtype=int)
 
         # root distributes start and end indices to all processes
         comm.Scatter(bounds, lower_upper, root=0)
@@ -456,9 +456,9 @@ class File:
         rank   = comm.Get_rank()
         nprocs = comm.Get_size()
 
-        displ   = np.zeros([nprocs], dtype=np.int)
-        count   = np.zeros([nprocs], dtype=np.int)
-        seq_cnt = np.zeros([nprocs, 2], dtype=np.int)
+        displ   = np.zeros([nprocs], dtype=int)
+        count   = np.zeros([nprocs], dtype=int)
+        seq_cnt = np.zeros([nprocs, 2], dtype=int)
 
         all_seq_cnt = None
         if rank == 0:
@@ -491,7 +491,7 @@ class File:
             count[:] = seq_cnt[:, 1] * 2
 
         # root distributes seq_cnt to all processes
-        my_seq_cnt = np.empty([2], dtype=np.int)
+        my_seq_cnt = np.empty([2], dtype=int)
         comm.Scatter(seq_cnt, my_seq_cnt, root=0)
 
         # self._seq_cnt[group][:, 0] is the event ID
