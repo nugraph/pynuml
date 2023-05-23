@@ -96,7 +96,7 @@ class H5Out:
         ds = self.f.create_dataset(f"/{name}", shape=(), dtype=ctype, data=data)
         del ctype, fields, data, ds
 
-    def write_metadata(metadata: dict[str, Any]) -> None:
+    def write_metadata(self, metadata: dict[str, Any]) -> None:
         for key, val in metadata.items():
             self.f[key] = val
 
