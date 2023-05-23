@@ -18,6 +18,7 @@ dependencies = [
     "mpi4py",
     "pandas",
     "particle",
+    "plotly",
     "torch>=1.12.1",
     "torch-geometric>=2.1.0",
 ]
