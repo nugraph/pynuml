@@ -111,7 +111,6 @@ class StandardLabels:
                         or part.start_process == 'muPlusCaptureAtRest' or part.start_process == 'Decay'):
                         sl = self.michel
                         slc = self.michel
-
                     elif part.start_process == 'conv' or part.end_process == 'conv' \
                         or part.start_process == 'compt' or part.end_process == 'compt':
                         if part.momentum >= self._gamma_threshold:
@@ -121,7 +120,7 @@ class StandardLabels:
                             sl = self.diffuse
                             slc = self.diffuse
                     elif part.start_process == 'eBrem' or part.end_process == 'phot' \
-                        or part.end_process == 'photonNuclear':
+                        or part.end_process == 'photonNuclear' or part.end_process == 'eIoni':
                         sl = self.diffuse
                         slc = None
                     elif part.start_process == 'muIoni' or part.start_process == 'hIoni' \
