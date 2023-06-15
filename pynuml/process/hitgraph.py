@@ -99,7 +99,14 @@ class HitGraphProducer(ProcessorBase):
         # get labels for each particle
         if self.labeller:
             particles = self.labeller(evt['particle_table'])
-            hits = hits.merge(particles, on='g4_id', how='left')
+            try:
+                hits = hits.merge(particles, on='g4_id', how='left')
+            except:
+                print('exception occurred when merging hits and particles')
+                print('hit table:', hits)
+                print('particle table:', particles)
+                print('skipping this event')
+                return evt.name, None
             mask = (~hits.g4_id.isnull()) & (hits.semantic_label.isnull())
             if mask.any():
                 print(f'found {mask.sum()} orphaned hits.')
@@ -114,7 +121,7 @@ class HitGraphProducer(ProcessorBase):
         data['metadata'].event = event_id[2]
 
         # spacepoint nodes
-        data['sp'].x = torch.empty(spacepoints.shape[0], 0)
+        data['sp'].num_nodes = spacepoints.shape[0]
 
         # draw graph edges
         for i, plane_hits in hits.groupby('local_plane'):
