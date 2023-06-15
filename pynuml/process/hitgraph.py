@@ -152,10 +152,7 @@ class HitGraphProducer(ProcessorBase):
 
             # truth information
             if self.labeller:
-                data[p].y_f = torch.tensor(plane_hits['filter_label'].values).bool()
-                filtered = plane_hits[plane_hits['filter_label']]
-                data[p].y_s = torch.tensor(filtered['semantic_label'].values).long()
-                self.labeller.validate(data[p].y_s)
-                data[p].y_i = torch.tensor(filtered['instance_label'].values).long()
+                data[p].y_semantic = torch.tensor(plane_hits['semantic_label'].fillna(-1).values).long()
+                data[p].y_instance = torch.tensor(plane_hits['instance_label'].fillna(-1).values).long()
 
         return evt.name, data
