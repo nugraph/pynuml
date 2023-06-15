@@ -1,17 +1,15 @@
 Installation
 ============
 
-In order to best make use of the **pynuml** package, installing dependencies with Anaconda is strongly encouraged.
+Installing dependencies
+-----------------------
 
-Dependencies
-------------
-
-An environment file for conda is available `here`_.
+In order to best make use of the **pynuml** package, installing dependencies with Anaconda is strongly encouraged. An environment file for conda is available `here`_.
 
 .. _here: https://raw.githubusercontent.com/vhewes/numl-docker/main/numl.yml
 
-Installation
-------------
+Installing pynuml
+-----------------
 
 **pynuml** is available on PyPi, and can be installed easily using::
 
