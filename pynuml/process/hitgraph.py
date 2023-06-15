@@ -12,7 +12,8 @@ class HitGraphProducer(ProcessorBase):
 
     def __init__(self,
                  file: 'pynuml.io.File',
-                 labeller: Callable = None,
+                 semantic_labeller: Callable = None,
+                 event_labeller: Callable = None,
                  planes: list[str] = ['u','v','y'],
                  node_pos: list[str] = ['local_wire','local_time'],
                  pos_norm: list[float] = [0.3,0.055],
@@ -20,7 +21,8 @@ class HitGraphProducer(ProcessorBase):
                  lower_bound: int = 20,
                  filter_hits: bool = False):
 
-        self.labeller = labeller
+        self.semantic_labeller = semantic_labeller
+        self.event_labeller = event_labeller
         self.planes = planes
         self.node_pos = node_pos
         self.pos_norm = torch.tensor(pos_norm).float()
@@ -32,7 +34,7 @@ class HitGraphProducer(ProcessorBase):
             pyg.transforms.Delaunay(),
             pyg.transforms.FaceToEdge()))
 
-        super(HitGraphProducer, self).__init__(file)
+        super().__init__(file)
 
     @property
     def columns(self) -> dict[str, list[str]]:
@@ -40,16 +42,20 @@ class HitGraphProducer(ProcessorBase):
             'hit_table': ['hit_id','local_plane','local_time','local_wire','integral','rms'],
             'spacepoint_table': ['spacepoint_id','hit_id']
         }
-        if self.labeller:
+        if self.semantic_labeller:
             groups['particle_table'] = ['g4_id','parent_id','type','momentum','start_process','end_process']
             groups['edep_table'] = []
+        if self.event_labeller:
+            groups['event_table'] = ['is_cc', 'nu_pdg']
         return groups
 
     @property
     def metadata(self):
         metadata = { 'planes': self.planes }
-        if self.labeller is not None:
-            metadata['classes'] = self.labeller.labels[:-1]
+        if self.semantic_labeller is not None:
+            metadata['semantic_classes'] = self.semantic_labeller.labels[:-1]
+        if self.event_labeller is not None:
+            metadata['event_classes'] = self.event_labeller.labels
         return metadata
 
     def __call__(self, evt: 'pynuml.io.Event') -> tuple[str, Any]:
@@ -61,7 +67,7 @@ class HitGraphProducer(ProcessorBase):
         spacepoints = evt['spacepoint_table'].reset_index(drop=True)
 
         # handle energy depositions
-        if self.filter_hits or self.labeller:
+        if self.filter_hits or self.semantic_labeller:
             edeps = evt['edep_table']
             energy_col = 'energy' if 'energy' in edeps.columns else 'energy_fraction' # for backwards compatibility
             edeps = edeps.sort_values(by=[energy_col],
@@ -90,13 +96,13 @@ class HitGraphProducer(ProcessorBase):
         # skip over any planes with zero hits
         for i in range(len(self.planes)):
             planehits = hits[hits.local_plane==i]
-            nhits = planehits.filter_label.sum() if self.labeller else planehits.shape[0]
+            nhits = planehits.filter_label.sum() if self.semantic_labeller else planehits.shape[0]
             if nhits < self.lower_bound:
                 return evt.name, None
 
         # get labels for each particle
-        if self.labeller:
-            particles = self.labeller(evt['particle_table'])
+        if self.semantic_labeller:
+            particles = self.semantic_labeller(evt['particle_table'])
             try:
                 hits = hits.merge(particles, on='g4_id', how='left')
             except:
@@ -151,8 +157,10 @@ class HitGraphProducer(ProcessorBase):
             data[p, 'nexus', 'sp'].edge_index = edge3d.long()
 
             # truth information
-            if self.labeller:
+            if self.semantic_labeller:
                 data[p].y_semantic = torch.tensor(plane_hits['semantic_label'].fillna(-1).values).long()
                 data[p].y_instance = torch.tensor(plane_hits['instance_label'].fillna(-1).values).long()
+            if self.event_labeller:
+                data['evt'].y = self.event_labeller(evt['event_table'])
 
         return evt.name, data
