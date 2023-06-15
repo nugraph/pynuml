@@ -6,7 +6,7 @@ In order to best make use of the **pynuml** package, installing dependencies wit
 Dependencies
 ------------
 
-An environment file for conda is available here_.
+An environment file for conda is available `here`_.
 
 :: _here: https://raw.githubusercontent.com/vhewes/numl-docker/main/numl.yml
 
