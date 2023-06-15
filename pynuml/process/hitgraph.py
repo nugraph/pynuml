@@ -1,8 +1,6 @@
-import sys
 from typing import Any, Callable
 import numpy as np
 import pandas as pd
-from mpi4py import MPI
 
 import torch
 import torch_geometric as pyg
