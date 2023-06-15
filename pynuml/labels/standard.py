@@ -174,12 +174,16 @@ class StandardLabels:
 
                 particle_processor = {
                     211: pion_labeler,
+                    221: pion_labeler,
+                    331: pion_labeler,
+                    223: pion_labeler,
                     13: muon_labeler,
                     321: kaon_labeler,
                     111: neutral_pions_kaons_labeler,
                     311: neutral_pions_kaons_labeler,
                     310: neutral_pions_kaons_labeler,
                     130: neutral_pions_kaons_labeler,
+                    113: neutral_pions_kaons_labeler,
                     11: electron_positron_labeler,
                     22: gamma_labeler
                 }
