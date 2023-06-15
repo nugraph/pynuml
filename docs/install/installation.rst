@@ -13,7 +13,7 @@ An environment file for conda is available `here`_.
 Installation
 ------------
 
-**pynuml** is available on PyPi, and can be installed easily using::
+pynuml is available on PyPi, and can be installed easily using::
     pip install pynuml
 
 If you're setting up the repository for development, you can also clone it and install it in editable mode::
