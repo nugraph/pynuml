@@ -111,7 +111,6 @@ class StandardLabels:
                         or part.start_process == 'muPlusCaptureAtRest' or part.start_process == 'Decay'):
                         sl = self.michel
                         slc = self.michel
-
                     elif part.start_process == 'conv' or part.end_process == 'conv' \
                         or part.start_process == 'compt' or part.end_process == 'compt':
                         if part.momentum >= self._gamma_threshold:
@@ -121,7 +120,7 @@ class StandardLabels:
                             sl = self.diffuse
                             slc = self.diffuse
                     elif part.start_process == 'eBrem' or part.end_process == 'phot' \
-                        or part.end_process == 'photonNuclear':
+                        or part.end_process == 'photonNuclear' or part.end_process == 'eIoni':
                         sl = self.diffuse
                         slc = None
                     elif part.start_process == 'muIoni' or part.start_process == 'hIoni' \
@@ -175,12 +174,16 @@ class StandardLabels:
 
                 particle_processor = {
                     211: pion_labeler,
+                    221: pion_labeler,
+                    331: pion_labeler,
+                    223: pion_labeler,
                     13: muon_labeler,
                     321: kaon_labeler,
                     111: neutral_pions_kaons_labeler,
                     311: neutral_pions_kaons_labeler,
                     310: neutral_pions_kaons_labeler,
                     130: neutral_pions_kaons_labeler,
+                    113: neutral_pions_kaons_labeler,
                     11: electron_positron_labeler,
                     22: gamma_labeler
                 }
