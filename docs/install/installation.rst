@@ -6,12 +6,14 @@ In order to best make use of the **pynuml** package, installing dependencies wit
 Dependencies
 ------------
 
-An environment file for conda is available `here <https://raw.githubusercontent.com/vhewes/numl-docker/main/numl.yml>`_.
+An environment file for conda is available here_.
+
+:: _here: https://raw.githubusercontent.com/vhewes/numl-docker/main/numl.yml
 
 Installation
 ------------
 
-``pynuml`` is available on PyPi, and can be installed easily using::
+**pynuml** is available on PyPi, and can be installed easily using::
     pip install pynuml
 
 If you're setting up the repository for development, you can also clone it and install it in editable mode::
