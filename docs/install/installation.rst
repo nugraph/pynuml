@@ -3,10 +3,12 @@ Installation
 
 In order to best make use of the **pynuml** package, it is strongly encouraged to install dependencies with Anaconda before installing **pynuml**. Parallel processing functionality requires an MPI installation, which will be automatically configured when you install the `numl` conda environment.
 
-Installing dependencies
------------------------
+Installing with Anaconda
+------------------------
 
- An environment file for conda is available `here`_., and can be installed using::
+Installing **pynuml** dependencies requires an Anaconda installation that utilises `conda-forge`. If you need to install Anaconda, we recommend using the `Mambaforge`_ variant.
+
+An environment file for conda is available `here`_, and can be installed using::
 
     conda env create -f numl.yml
 
@@ -14,16 +16,15 @@ Once installed, this environment will need to be activated at the start of each 
 
     conda activate numl
 
+.. _Mambaforge: https://github.com/conda-forge/miniforge#mambaforge
 .. _here: https://raw.githubusercontent.com/vhewes/numl-docker/main/numl.yml
 
-Installing pynuml
------------------
+This environment contains the most recent version of **pynuml** published to PyPi.
 
-**pynuml** is available on PyPi, and can be installed easily using::
+Installing for development
+--------------------------
 
-    pip install pynuml
-
-If you're setting up the repository for development, you can also clone it and install it in editable mode::
+If you're installing **pynuml** for development, you can clone the repository directly and install it in editable mode::
 
     git clone https://github.com/vhewes/pynuml
     pip install -e ./pynuml
