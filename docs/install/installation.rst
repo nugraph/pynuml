@@ -14,9 +14,11 @@ Installation
 ------------
 
 **pynuml** is available on PyPi, and can be installed easily using::
+
     pip install pynuml
 
 If you're setting up the repository for development, you can also clone it and install it in editable mode::
+
     git clone https://github.com/vhewes/pynuml
     pip install -e ./pynuml
 
