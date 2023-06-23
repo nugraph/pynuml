@@ -74,7 +74,7 @@ class H5Interface:
         for dataset in dataset_names:
             store, attr = dataset.split('/')
             if "_" in store: store = tuple(store.split("_"))
-            if attr in ['run','subrun','event','num_nodes']: # scalar
+            if group[dataset].size == 1: # scalar
                 data[store][attr] = torch.as_tensor(group[dataset][()])
             elif group[dataset].ndim == 0:
                 # other zero-dimensional size datasets
