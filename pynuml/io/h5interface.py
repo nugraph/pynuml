@@ -74,11 +74,12 @@ class H5Interface:
         for dataset in dataset_names:
             store, attr = dataset.split('/')
             if "_" in store: store = tuple(store.split("_"))
-            if group[dataset].size == 1: # scalar
-                data[store][attr] = torch.as_tensor(group[dataset][()])
-            elif group[dataset].ndim == 0:
-                # other zero-dimensional size datasets
-                data[store][attr] = torch.LongTensor([[],[]])
+            if group[dataset].ndim == 0:
+                if group[dataset].size == 1: # scalar
+                   data[store][attr] = torch.as_tensor(group[dataset][()])
+                else:
+                    # other zero-dimensional size datasets
+                    data[store][attr] = torch.LongTensor([[],[]])
             else: # multi-dimension array
                 data[store][attr] = torch.as_tensor(group[dataset][:])
         return data
