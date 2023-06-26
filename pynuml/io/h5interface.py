@@ -69,17 +69,13 @@ class H5Interface:
         data = HeteroData()
         # Read the whole dataset idx, dataset name is self.groups[idx]
         group = self.f[f'dataset/{name}'][()]
-        dataset_names = group.dtype.names
-
-        for dataset in dataset_names:
+        for dataset in group.dtype.names:
             store, attr = dataset.split('/')
             if "_" in store: store = tuple(store.split("_"))
-            if group[dataset].ndim == 0:
-                if group[dataset].size == 1: # scalar
-                   data[store][attr] = torch.as_tensor(group[dataset][()])
-                else:
-                    # other zero-dimensional size datasets
-                    data[store][attr] = torch.LongTensor([[],[]])
+            if group[dataset].size == 0 and attr == 'edge_index':
+                data[store][attr] = torch.LongTensor([[],[]])
+            elif group[dataset].ndim == 0: # scalar
+                data[store][attr] = torch.as_tensor(group[dataset][()])
             else: # multi-dimension array
                 data[store][attr] = torch.as_tensor(group[dataset][:])
         return data
