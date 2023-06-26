@@ -9,7 +9,7 @@
 project = 'pynuml'
 copyright = '2023, v hewes'
 author = 'v hewes'
-release = '0.1.1'
+release = '23.6.1'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
