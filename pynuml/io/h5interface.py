@@ -72,10 +72,11 @@ class H5Interface:
         for dataset in group.dtype.names:
             store, attr = dataset.split('/')
             if "_" in store: store = tuple(store.split("_"))
-            if group[dataset].size == 0 and attr == 'edge_index':
-                data[store][attr] = torch.LongTensor([[],[]])
-            elif group[dataset].ndim == 0: # scalar
-                data[store][attr] = torch.as_tensor(group[dataset][()])
+            if group[dataset].ndim == 0:
+                if attr == 'edge_index': # empty edge tensor
+                    data[store][attr] = torch.LongTensor([[],[]])
+                else: # scalar
+                    data[store][attr] = torch.as_tensor(group[dataset][()])
             else: # multi-dimension array
                 data[store][attr] = torch.as_tensor(group[dataset][:])
         return data
