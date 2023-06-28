@@ -171,7 +171,8 @@ class HitGraphProducer(ProcessorBase):
                 data[p].y_semantic = torch.tensor(plane_hits['semantic_label'].fillna(-1).values).long()
                 data[p].y_instance = torch.tensor(plane_hits['instance_label'].fillna(-1).values).long()
             if self.label_vertex:
-                data[p].y_vtx = torch.tensor([ event[f'nu_vtx_wire_pos_{i}'], event.nu_vtx_wire_time ]).float()
+                vtx_2d = torch.tensor([ event[f'nu_vtx_wire_pos_{i}'], event.nu_vtx_wire_time ]).float()
+                data[p].y_vtx = vtx_2d * self.pos_norm[None,:]
 
         # event label
         if self.event_labeller:
