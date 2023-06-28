@@ -50,7 +50,7 @@ class HitGraphProducer(ProcessorBase):
         if self.event_labeller:
             groups['event_table'] = ['is_cc', 'nu_pdg']
         if self.label_vertex:
-            keys = ['nu_vtx_x','nu_vtx_y','nu_vtx_z','nu_vtx_wire_pos_0','nu_vtx_wire_pos_1','nu_vtx_wire_pos_2','nu_vtx_wire_time']
+            keys = ['nu_vtx','nu_vtx_wire_pos','nu_vtx_wire_time']
             if 'event_table' in groups:
                 groups['event_table'].extend(keys)
             else:
