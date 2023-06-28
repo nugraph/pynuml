@@ -160,7 +160,9 @@ class HitGraphProducer(ProcessorBase):
             if self.semantic_labeller:
                 data[p].y_semantic = torch.tensor(plane_hits['semantic_label'].fillna(-1).values).long()
                 data[p].y_instance = torch.tensor(plane_hits['instance_label'].fillna(-1).values).long()
-            if self.event_labeller:
-                data['evt'].y = torch.tensor(self.event_labeller(evt['event_table'])).long()
+
+        # event label
+        if self.event_labeller:
+            data['evt'].y = torch.tensor(self.event_labeller(evt['event_table'])).long()
 
         return evt.name, data
