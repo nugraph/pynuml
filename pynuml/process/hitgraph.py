@@ -130,9 +130,9 @@ class HitGraphProducer(ProcessorBase):
         data = pyg.data.HeteroData()
 
         # event metadata
-        data.run = event_id[0]
-        data.subrun = event_id[1]
-        data.event = event_id[2]
+        data['metadata'].run = event_id[0]
+        data['metadata'].subrun = event_id[1]
+        data['metadata'].event = event_id[2]
 
         # spacepoint nodes
         data['sp'].num_nodes = spacepoints.shape[0]
@@ -176,11 +176,11 @@ class HitGraphProducer(ProcessorBase):
 
         # event label
         if self.event_labeller:
-            data.y_evt = torch.tensor(self.event_labeller(event)).long()
+            data['evt'].y = torch.tensor(self.event_labeller(event)).long()
 
         # 3D vertex truth
         if self.label_vertex:
             vtx_3d = [ event.nu_vtx_x, event.nu_vtx_y, event.nu_vtx_z ]
-            data.y_vtx = torch.tensor(vtx_3d).float()
+            data['evt'].y_vtx = torch.tensor(vtx_3d).float()
 
         return evt.name, data
