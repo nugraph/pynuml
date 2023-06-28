@@ -14,6 +14,7 @@ class HitGraphProducer(ProcessorBase):
                  file: 'pynuml.io.File',
                  semantic_labeller: Callable = None,
                  event_labeller: Callable = None,
+                 label_vertex: bool = False,
                  planes: list[str] = ['u','v','y'],
                  node_pos: list[str] = ['local_wire','local_time'],
                  pos_norm: list[float] = [0.3,0.055],
@@ -23,6 +24,7 @@ class HitGraphProducer(ProcessorBase):
 
         self.semantic_labeller = semantic_labeller
         self.event_labeller = event_labeller
+        self.label_vertex = label_vertex
         self.planes = planes
         self.node_pos = node_pos
         self.pos_norm = torch.tensor(pos_norm).float()
@@ -47,6 +49,12 @@ class HitGraphProducer(ProcessorBase):
             groups['edep_table'] = []
         if self.event_labeller:
             groups['event_table'] = ['is_cc', 'nu_pdg']
+        if self.label_vertex:
+            keys = ['nu_vtx_x','nu_vtx_y','nu_vtx_z','nu_vtx_wire_pos_0','nu_vtx_wire_pos_1','nu_vtx_wire_pos_2','nu_vtx_wire_time']
+            if 'event_table' in groups:
+                groups['event_table'].extend(keys)
+            else:
+                groups['event_table'] = keys
         return groups
 
     @property
@@ -162,9 +170,16 @@ class HitGraphProducer(ProcessorBase):
             if self.semantic_labeller:
                 data[p].y_semantic = torch.tensor(plane_hits['semantic_label'].fillna(-1).values).long()
                 data[p].y_instance = torch.tensor(plane_hits['instance_label'].fillna(-1).values).long()
+            if self.label_vertex:
+                data[p].y_vtx = torch.tensor([ event[f'nu_vtx_wire_pos_{i}'], event.nu_vtx_wire_time ]).float()
 
         # event label
         if self.event_labeller:
             data['evt'].y = torch.tensor(self.event_labeller(event)).long()
+
+        # 3D vertex truth
+        if self.label_vertex:
+            vtx_3d = [ event.nu_vtx_x, event.nu_vtx_y, event,nu_vtx_z ]
+            data['evt'].y_vtx = torch.tensor(vtx_3d).float()
 
         return evt.name, data
