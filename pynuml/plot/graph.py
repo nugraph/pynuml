@@ -24,15 +24,15 @@ class GraphPlot:
             df = pd.DataFrame(plane['id'], columns=['id'])
             df['plane'] = p
             df[['wire','time']] = plane['pos']
-            df['y_f'] = plane['y_f']
-            mask = df.y_f.values
-            df.loc[mask, 'y_s'] = to_categorical(plane['y_s'])
-            df.loc[mask, 'y_i'] = plane['y_i'].numpy()
-            if 'x_s' in plane.keys():
-                df['x_s'] = to_categorical(plane['x_s'].argmax(dim=-1).detach())
-                df[self._classes] = plane['x_s'].detach()
-            if 'x_f' in plane.keys():
-                df['x_f'] = plane['x_f'].detach()
+            df['y_filter'] = plane['y_semantic'] != -1
+            mask = df.y_filter.values
+            df['y_semantic'] = to_categorical(plane['y_semantic'])
+            df['y_instance'] = plane['y_instance'].numpy()
+            if 'x_semantic' in plane.keys():
+                df['x_semantic'] = to_categorical(plane['x_semantic'].argmax(dim=-1).detach())
+                df[self._classes] = plane['x_semantic'].detach()
+            if 'x_filter' in plane.keys():
+                df['x_filter'] = plane['x_filter'].detach()
             dfs.append(df)
         return pd.concat(dfs)
 
@@ -60,15 +60,15 @@ class GraphPlot:
             if how == 'true':
                 opts = {
                     'title': 'True semantic labels',
-                    'labels': { 'y_s': 'Semantic label' },
-                    'color': 'y_s',
+                    'labels': { 'y_semantic': 'Semantic label' },
+                    'color': 'y_semantic',
                     'color_discrete_map': self._cmap
                 }
             elif how == 'pred':
                 opts = {
                     'title': 'Predicted semantic labels',
-                    'labels': { 'x_s': 'Semantic label' },
-                    'color': 'x_s',
+                    'labels': { 'x_semantic': 'Semantic label' },
+                    'color': 'x_semantic',
                     'color_discrete_map': self._cmap
                 }
             elif how in self._classes:
@@ -86,14 +86,14 @@ class GraphPlot:
             if how == 'true':
                 opts = {
                     'title': 'True instance labels',
-                    'labels': { 'y_i': 'Instance label' },
-                    'color': 'y_i'
+                    'labels': { 'y_instance': 'Instance label' },
+                    'color': 'y_instance'
                 }
             elif how == 'pred':
                 opts = {
                     'title': 'Predicted instance labels',
-                    'labels': { 'x_i': 'Instance label' },
-                    'color': 'x_i'
+                    'labels': { 'x_instance': 'Instance label' },
+                    'color': 'x_instance'
                 }
             else:
                 raise Exception('for instance labels, "how" must be one of "true" or "pred".')
@@ -103,15 +103,15 @@ class GraphPlot:
             if how == 'true':
                 opts = {
                     'title': 'True filter labels',
-                    'labels': { 'y_f': 'Filter label' },
-                    'color': 'y_f',
+                    'labels': { 'y_filter': 'Filter label' },
+                    'color': 'y_filter',
                     'color_continuous_scale': px.colors.sequential.Reds
                 }
             elif how == 'pred':
                 opts = {
                     'title': 'Predicted filter labels',
-                    'labels': { 'x_f': 'Filter label' },
-                    'color': 'x_f',
+                    'labels': { 'x_filter': 'Filter label' },
+                    'color': 'x_filter',
                     'color_continuous_scale': px.colors.sequential.Reds
                 }
             else:
@@ -123,10 +123,10 @@ class GraphPlot:
         if filter == 'none':
             df = self._df
         elif filter == 'true':
-            df = self._df[self._df.y_f.values]
+            df = self._df[self._df.y_filter.values]
             opts['title'] += ' (filtered by truth)'
         elif filter == 'pred':
-            df = self._df[self._df.x_f > 0.5]
+            df = self._df[self._df.x_filter > 0.5]
             opts['title'] += ' (filtered by prediction)'
         else:
             raise Exception('"filter" must be one of "none", "true" or "pred.')
