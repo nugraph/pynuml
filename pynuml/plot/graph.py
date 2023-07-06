@@ -1,13 +1,12 @@
-from typing import List
-
 import pandas as pd
 from torch_geometric.data import HeteroData
 import plotly.express as px
+from plotly.graph_objects import FigureWidget
 
 class GraphPlot:
     def __init__(self,
-                 planes: List[str],
-                 classes: List[str]):
+                 planes: list[str],
+                 classes: list[str]):
         self._planes = planes
         self._classes = classes
         self._labels = pd.CategoricalDtype(classes, ordered=True)
@@ -38,12 +37,9 @@ class GraphPlot:
 
     def plot(self,
              data: HeteroData,
-             name: str,
              target: str = 'hits',
              how: str = 'none',
-             filter: str = 'none',
-             write_png: bool = True,
-             write_html: bool = False):
+             filter: str = 'none') -> FigureWidget:
 
         if data is not self._data:
             self._data = data
@@ -136,7 +132,4 @@ class GraphPlot:
         fig.update_xaxes(matches=None)
         for a in fig.layout.annotations:
             a.text = a.text.replace('plane=', '')
-        if write_html:
-            fig.write_html(f'{name}.html')
-        if write_png:
-            fig.write_image(f'{name}.png')
+        return FigureWidget(fig)
