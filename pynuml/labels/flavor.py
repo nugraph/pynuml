@@ -33,8 +33,7 @@ class FlavorLabels:
     def nc(self):
         return self.index('nc')
 
-    def __call__(self, events: pd.DataFrame):
-        event = events.squeeze()
+    def __call__(self, event: pd.Series):
         if not event.is_cc:
             return self.nc
         pdg = abs(event.nu_pdg)

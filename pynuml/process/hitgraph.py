@@ -14,6 +14,7 @@ class HitGraphProducer(ProcessorBase):
                  file: 'pynuml.io.File',
                  semantic_labeller: Callable = None,
                  event_labeller: Callable = None,
+                 label_vertex: bool = False,
                  planes: list[str] = ['u','v','y'],
                  node_pos: list[str] = ['local_wire','local_time'],
                  pos_norm: list[float] = [0.3,0.055],
@@ -23,6 +24,7 @@ class HitGraphProducer(ProcessorBase):
 
         self.semantic_labeller = semantic_labeller
         self.event_labeller = event_labeller
+        self.label_vertex = label_vertex
         self.planes = planes
         self.node_pos = node_pos
         self.pos_norm = torch.tensor(pos_norm).float()
@@ -47,6 +49,12 @@ class HitGraphProducer(ProcessorBase):
             groups['edep_table'] = []
         if self.event_labeller:
             groups['event_table'] = ['is_cc', 'nu_pdg']
+        if self.label_vertex:
+            keys = ['nu_vtx','nu_vtx_wire_pos','nu_vtx_wire_time']
+            if 'event_table' in groups:
+                groups['event_table'].extend(keys)
+            else:
+                groups['event_table'] = keys
         return groups
 
     @property
@@ -62,6 +70,8 @@ class HitGraphProducer(ProcessorBase):
 
         event_id = evt.event_id
         name = f'r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}'
+
+        event = evt['event_table'].squeeze()
 
         hits = evt['hit_table']
         spacepoints = evt['spacepoint_table'].reset_index(drop=True)
@@ -160,7 +170,17 @@ class HitGraphProducer(ProcessorBase):
             if self.semantic_labeller:
                 data[p].y_semantic = torch.tensor(plane_hits['semantic_label'].fillna(-1).values).long()
                 data[p].y_instance = torch.tensor(plane_hits['instance_label'].fillna(-1).values).long()
-            if self.event_labeller:
-                data['evt'].y = torch.tensor(self.event_labeller(evt['event_table'])).long()
+            if self.label_vertex:
+                vtx_2d = torch.tensor([ event[f'nu_vtx_wire_pos_{i}'], event.nu_vtx_wire_time ]).float()
+                data[p].y_vtx = vtx_2d * self.pos_norm[None,:]
+
+        # event label
+        if self.event_labeller:
+            data['evt'].y = torch.tensor(self.event_labeller(event)).long()
+
+        # 3D vertex truth
+        if self.label_vertex:
+            vtx_3d = [ event.nu_vtx_x, event.nu_vtx_y, event.nu_vtx_z ]
+            data['evt'].y_vtx = torch.tensor(vtx_3d).float()
 
         return evt.name, data
