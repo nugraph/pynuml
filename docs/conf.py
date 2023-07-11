@@ -3,17 +3,20 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
+import pynuml
+
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'pynuml'
 copyright = '2023, v hewes'
 author = 'v hewes'
+version = pynuml.__version__
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions = []
+extensions = ['sphinx.ext.autodoc']
 
 templates_path = ['_templates']
 exclude_patterns = []
