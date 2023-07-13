@@ -5,6 +5,7 @@ class FlavorLabels:
         self._labels = (
             'cc_nue',
             'cc_numu',
+            'cc_nutau',
             'nc')
 
     @property
@@ -28,7 +29,11 @@ class FlavorLabels:
     @property
     def cc_numu(self):
         return self.index('cc_numu')
-
+    
+    @property
+    def cc_nutau(self):
+        return self.index('cc_nutau')
+    
     @property
     def nc(self):
         return self.index('nc')
@@ -41,4 +46,6 @@ class FlavorLabels:
             return self.cc_nue
         if pdg == 14:
             return self.cc_numu
+        if pdg == 16:
+            return self.cc_nutau
         raise Exception(f'PDG code {event.nu_pdg} not recognised.')
