@@ -1,5 +1,5 @@
 import pandas as pd
-from torch_geometric.data import HeteroData
+from torch_geometric.data import Batch, HeteroData
 import plotly.express as px
 from plotly.graph_objects import FigureWidget
 
@@ -17,6 +17,8 @@ class GraphPlot:
     def to_dataframe(self, data: HeteroData):
         def to_categorical(arr):
             return pd.Categorical.from_codes(codes=arr, dtype=self._labels)
+        if isinstance(data, Batch):
+            raise Exception('to_dataframe does not support batches!')
         dfs = []
         for p in self._planes:
             plane = data[p].to_dict()
