@@ -180,7 +180,7 @@ class HitGraphProducer(ProcessorBase):
 
         # 3D vertex truth
         if self.label_vertex:
-            vtx_3d = [ event.nu_vtx_x, event.nu_vtx_y, event.nu_vtx_z ]
+            vtx_3d = [ [ event.nu_vtx_x, event.nu_vtx_y, event.nu_vtx_z ] ]
             data['evt'].y_vtx = torch.tensor(vtx_3d).float()
 
         return evt.name, data
