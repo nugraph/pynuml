@@ -18,3 +18,9 @@ pynuml Documentation
 .. toctree::
    :maxdepth: 1
    :caption: Getting Started
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Package Reference
+
+   modules/io
