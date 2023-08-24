@@ -10,7 +10,7 @@ class GraphPlot:
         self._planes = planes
         self._classes = classes
         self._labels = pd.CategoricalDtype(classes, ordered=True)
-        self._cmap = { c: px.colors.qualitative.Plotly[i] for i, c in enumerate(self._classes) }
+        self._cmap = { c: px.colors.qualitative.Plotly[i] for i, c in enumerate(classes) }
         self._data = None
         self._df = None
 
