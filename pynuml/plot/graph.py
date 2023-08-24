@@ -35,7 +35,12 @@ class GraphPlot:
             if 'x_filter' in plane.keys():
                 df['x_filter'] = plane['x_filter'].detach()
             dfs.append(df)
-        return pd.concat(dfs)
+        df = pd.concat(dfs)
+        md = data['metadata']
+        df['run'] = md.run.item()
+        df['subrun'] = md.subrun.item()
+        df['event'] = md.event.item()
+        return df
 
     def plot(self,
              data: HeteroData,
