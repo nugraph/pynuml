@@ -138,7 +138,6 @@ class GraphPlot:
 
         fig = px.scatter(df, x='wire', y='time', facet_col='plane',
                          width=width, height=height, **opts)
-        fig.update_yaxes(matches=None)
         fig.update_xaxes(matches=None)
         for a in fig.layout.annotations:
             a.text = a.text.replace('plane=', '')
