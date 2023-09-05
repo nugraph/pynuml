@@ -205,6 +205,10 @@ class StandardLabels:
                     else:
                         sl = self.diffuse
 
+                # call a charged tau highly ionising - should revisit this
+                if abs(part.type) == 15:
+                    sl = self.hadron
+
                 # check to make sure particle was assigned
                 if sl == -1:
                     unlabeled_particle(part, parent_type)
