@@ -71,7 +71,8 @@ class HitGraphProducer(ProcessorBase):
         event_id = evt.event_id
         name = f'r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}'
 
-        event = evt['event_table'].squeeze()
+        if self.event_labeller or self.label_vertex:
+            event = evt['event_table'].squeeze()
 
         hits = evt['hit_table']
         spacepoints = evt['spacepoint_table'].reset_index(drop=True)
