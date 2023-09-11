@@ -20,6 +20,7 @@ class GraphPlot:
         # which we don't have any power to fix but will presumably
         # be fixed on their end at some point
         warnings.filterwarnings("ignore", ".*The default of observed=False is deprecated and will be changed to True in a future version of pandas.*")
+        self._truth_cols = ( 'g4_id', 'parent_id', 'pdg' )
 
     def to_dataframe(self, data: HeteroData):
         def to_categorical(arr):
@@ -36,11 +37,19 @@ class GraphPlot:
             mask = df.y_filter.values
             df['y_semantic'] = to_categorical(plane['y_semantic'])
             df['y_instance'] = pd.Categorical(plane['y_instance'].numpy())
+
+            # add detailed truth information if it's available
+            for col in self._truth_cols:
+                if col in plane.keys():
+                    df[col] = plane[col].numpy()
+
+            # add model prediction if it's available
             if 'x_semantic' in plane.keys():
                 df['x_semantic'] = to_categorical(plane['x_semantic'].argmax(dim=-1).detach())
                 df[self._classes] = plane['x_semantic'].detach()
             if 'x_filter' in plane.keys():
                 df['x_filter'] = plane['x_filter'].detach()
+
             dfs.append(df)
         df = pd.concat(dfs)
         md = data['metadata']
@@ -149,6 +158,11 @@ class GraphPlot:
             opts['title'] += ' (filtered by prediction)'
         else:
             raise Exception('"filter" must be one of "none", "show", "true" or "pred".')
+
+        opts['hover_data'] = []
+        for col in self._truth_cols:
+            if col in df.keys():
+                opts['hover_data'].append(col)
 
         fig = px.scatter(df, x='wire', y='time', facet_col='plane',
                          width=width, height=height, **opts)
