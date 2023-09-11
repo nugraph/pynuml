@@ -20,7 +20,8 @@ class HitGraphProducer(ProcessorBase):
                  pos_norm: list[float] = [0.3,0.055],
                  node_feats: list[str] = ['integral','rms'],
                  lower_bound: int = 20,
-                 filter_hits: bool = False):
+                 filter_hits: bool = False,
+                 store_detailed_truth: bool = False):
 
         self.semantic_labeller = semantic_labeller
         self.event_labeller = event_labeller
@@ -31,6 +32,7 @@ class HitGraphProducer(ProcessorBase):
         self.node_feats = node_feats
         self.lower_bound = lower_bound
         self.filter_hits = filter_hits
+        self.store_detailed_truth = store_detailed_truth
 
         self.transform = pyg.transforms.Compose((
             pyg.transforms.Delaunay(),
@@ -171,6 +173,10 @@ class HitGraphProducer(ProcessorBase):
             if self.semantic_labeller:
                 data[p].y_semantic = torch.tensor(plane_hits['semantic_label'].fillna(-1).values).long()
                 data[p].y_instance = torch.tensor(plane_hits['instance_label'].fillna(-1).values).long()
+                if self.store_detailed_truth:
+                    data[p].g4_id = torch.tensor(plane_hits['g4_id'].fillna(-1).values).long()
+                    data[p].parent_id = torch.tensor(plane_hits['parent_id'].fillna(-1).values).long()
+                    data[p].pdg = torch.tensor(plane_hits['type'].fillna(-1).values).long()
             if self.label_vertex:
                 vtx_2d = torch.tensor([ event[f'nu_vtx_wire_pos_{i}'], event.nu_vtx_wire_time ]).float()
                 data[p].y_vtx = vtx_2d * self.pos_norm[None,:]
