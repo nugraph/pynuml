@@ -80,94 +80,181 @@ class StandardLabels:
 
         def walk(part, particles, depth, sl, il):
             def s(part, particles):
-                sl, slc = -1, None
+                sl, slc = -1, None # default semantic labels
+                il, ilc = -1, None # default instance labels
                 parent_type = 0 if part.parent_id == 0 else particles.type[part.parent_id]
 
+                # charged pion labeller
                 def pion_labeler(part, parent_type):
                     sl = self.pion
-                    slc = None
-                    return sl, slc
+                    il = part.g4_id
+                    # do not propagate labels to children
+                    return sl, il, None, None
 
+                # muon labeller
                 def muon_labeler(part, parent_type):
                     sl = self.muon
-                    slc = None
-                    return sl, slc
+                    il = part.g4_id
+                    # do not propagate labels to children
+                    return sl, il, None, None
 
+                # tau labeller
+                def tau_labeler(part, parent_type):
+                    sl = self.tau
+                    il = part.g4_id
+                    # do not propagate labels to children
+                    return sl, il, None, None
+
+                # charged kaon labeller
                 def kaon_labeler(part, parent_type):
                     sl = self.kaon
-                    slc = None
-                    return sl, slc
+                    il = part.g4_id
+                    # do not propagate labels to children
+                    return sl, il, None, None
 
+                # neutral pion + kaon labeller
                 def neutral_pions_kaons_labeler(part, parent_type):
                     sl = self.invisible
-                    slc = None
-                    return sl, slc
+                    # form no instance, and do not propagate labels to children
+                    return sl, -1, None, None
 
+                # electron + positron labeller
                 def electron_positron_labeler(part, parent_type):
+
+                    # label primary electrons as showers
                     if part.start_process == 'primary':
                         sl = self.shower
+                        il = part.g4_id
+                        # propagate labels to children
                         slc = self.shower
-                    elif abs(parent_type) == 13 and (part.start_process == 'muMinusCaptureAtRest' \
-                        or part.start_process == 'muPlusCaptureAtRest' or part.start_process == 'Decay'):
+                        ilc = part.g4_id
+
+                    # label michels
+                    elif abs(parent_type) == 13 and part.start_process in ('muMinusCaptureAtRest','muPlusCaptureAtRest','Decay'):
                         sl = self.michel
-                        slc = self.michel
+                        il = part.g4_id
+                        # do not propagate labels to children
+                        slc = None
+                        ilc = None
+
+                    # conversions and Compton scatters can form showers...
                     elif part.start_process == 'conv' or part.end_process == 'conv' \
                         or part.start_process == 'compt' or part.end_process == 'compt':
+
+                        # ...if they have enough momentum...
                         if part.momentum >= self._gamma_threshold:
                             sl = self.shower
+                            il = part.g4_id
+                            # propagate labels to children
                             slc = self.shower
+                            ilc = part.g4_id
+                        # ...otherwise we call them diffuse
                         else:
                             sl = self.diffuse
+                            il = -1
+                            # propagate labels to children
                             slc = self.diffuse
+                            ilc = -1
+
+                    # these processes tend to look diffuse
                     elif part.start_process == 'eBrem' or part.end_process == 'phot' \
                         or part.end_process == 'photonNuclear' or part.end_process == 'eIoni':
                         sl = self.diffuse
+                        # form no instance, and do not propagate labels to children
+                        il = -1
                         slc = None
+                        ilc = None
+
+                    # ionisation electrons are typically delta rays...
                     elif part.start_process == 'muIoni' or part.start_process == 'hIoni' \
                         or part.start_process == 'eIoni':
+
+                        # ...but no point labelling them as such if they're too low-momentum to be resolved
                         if part.momentum <= 0.01:
+
+                            # delta rays from muons
                             if part.start_process == 'muIoni':
                                 sl = self.muon
+                                il = part.parent_id
+                                # do not propagate labels to children
                                 slc = None
+                                ilc = None
+
+                            # delta rays from hadrons
                             elif part.start_process == 'hIoni':
                                 if abs(parent_type) == 2212:
                                     sl = self.hadron
-                                    if part.momentum <= 0.0015: sl = self.diffuse
+                                    il = part.parent_id
+                                    # do not propagate labels to children
+                                    slc = None
+                                    ilc = None
+                                    if part.momentum <= 0.0015:
+                                        sl = self.diffuse
+                                        # form no instance, and do not propagate labels to children
+                                        il = -1
+                                        slc = None
+                                        ilc = None
+
+                                # delta rays from pions
                                 else:
                                     sl = self.pion
-                                slc = None
+                                    il = part.parent_id
+                                    # do not propagate labels to children
+                                    slc = None
+                                    ilc = None
+
+                            # everything else is just called diffuse
                             else:
                                 sl = self.diffuse
+                                # form no instance, and do not propagate labels to children
+                                il = -1
                                 slc = None
+                                ilc = None
+
+                        # if higher momentum, explicitly label as delta
                         else:
                             sl = self.delta
+                            il = part.g4_id
                             slc = self.delta
+                            ilc = part.g4_id
+
+                    # diffuse EM processes
                     elif part.end_process == 'StepLimiter' or part.end_process == 'annihil' \
                         or part.end_process == 'eBrem' or part.start_process == 'hBertiniCaptureAtRest' \
                         or part.end_process == 'FastScintillation':
                         sl = self.diffuse
                         slc = self.diffuse
+                        # do not form instances for diffuse depositions
+                        il = 1
+                        ilc = -1
                     else:
                         raise Exception(f'labelling failed for electron with start process "{part.start_process}" and end process "{part.end_process}')
 
-                    return sl, slc
+                    return sl, il, slc, ilc
 
                 def gamma_labeler(part, parent_type):
                     if part.start_process == 'conv' or part.end_process == 'conv' \
                         or part.start_process == 'compt' or part.end_process == 'compt':
                         if part.momentum >= self._gamma_threshold:
                             sl = self.shower
+                            il = part.g4_id
                             slc = self.shower
+                            ilc = part.g4_id
                         else:
                             sl = self.diffuse
                             slc = self.diffuse
+                            # do not form instances for diffuse depositions
+                            il = -1
+                            ilc = -1
                     elif part.start_process == 'eBrem' or part.end_process == 'phot' \
                         or part.end_process == 'photonNuclear':
                         sl = self.diffuse
                         slc = None
+                        il = -1
+                        ilc = None
                     else:
                         raise Exception(f'labelling failed for photon with start process "{part.start_process}" and end process "{part.end_process}')
-                    return sl, slc
+                    return sl, il, slc, ilc
 
                 def unlabeled_particle(part, parent_type):
                     raise Exception(f"particle not recognised! PDG code {part.type}, parent PDG code {parent_type}, start process {part.start_process}, end process {part.end_process}")
@@ -191,9 +278,10 @@ class StandardLabels:
                 if particle.pdgid.charge(part.type) == 0 and part.end_process == 'CoupledTransportation':
                     # neutral particle left the volume boundary
                     sl = self.invisible
-                else:
-                    func = particle_processor.get(abs(part.type), lambda x ,y: (-1, None))
-                    sl, slc = func(part, parent_type)
+                elif abs(part.type) in particle_processor.keys():
+                    func = particle_processor.get(abs(part.type), lambda x, y: (-1, None))
+                    ret = func(part, parent_type)
+                    sl, il, slc, ilc = ret
 
                 # baryon interactions - hadron or diffuse
                 if (particle.pdgid.is_baryon(part.type) and particle.pdgid.charge(part.type) == 0) \
@@ -202,6 +290,7 @@ class StandardLabels:
                 if particle.pdgid.is_baryon(part.type) and particle.pdgid.charge(part.type) != 0:
                     if abs(part.type) == 2212 and part.momentum >= self._hadron_threshold:
                         sl = self.hadron
+                        il = part.g4_id
                     else:
                         sl = self.diffuse
 
@@ -213,25 +302,13 @@ class StandardLabels:
                 if sl == -1:
                     unlabeled_particle(part, parent_type)
 
-                return sl, slc
+                return sl, il, slc, ilc
 
-            def i(part, particles, sl):
-                il, ilc = -1, None
-                if sl == self.muon and part.start_process == 'muIoni':
-                    il = part.parent_id
-                elif (sl == self.pion or sl == self.hadron) and part.start_process == 'hIoni':
-                    il = part.parent_id
-                elif sl != self.diffuse and sl != self.delta and sl != self.invisible:
-                    il = part.g4_id
-                    if sl == self.shower: ilc = il
-                    if sl == self.michel: ilc = il
-                return il, ilc
-
-            if sl is not None: slc = sl
-            else: sl, slc = s(part, particles)
-
-            if il is not None: ilc = il
-            else: il, ilc = i(part, particles, sl)
+            if sl is not None:
+                slc = sl
+                ilc = il
+            else:
+                sl, il, slc, ilc = s(part, particles)
 
             ret = [ {
                 "g4_id": part.g4_id,
@@ -260,6 +337,7 @@ class StandardLabels:
             return instances[row.instance_label]
 
         labels["instance_label"] = labels.apply(alias_instance, args=[instances], axis="columns")
+
         return labels
 
     def validate(self, labels: pd.Series):
