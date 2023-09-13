@@ -28,12 +28,12 @@ PyNuML also provides standard tools for the production of ML inputs, taking Pand
 
 In order to correctly install all dependency packages, it's recommended to work within an Anaconda installation with NuML dependencies installed. If you don't already have Anaconda installed, we recommend using [Mambaforge](https://github.com/conda-forge/miniforge). A conda environment file is available via the anaconda client, and can be installed by running
 ```
-conda install -y anaconda-client
-conda env create numl/numl
+mamba install -y anaconda-client
+mamba env create numl/numl
 ```
 This will install all dependencies necesssary for working with NuML. Once this environment is installed, it can be activated in a terminal session by running
 ```
-conda activate numl
+mamba activate numl
 ```
 
 This conda environment includes the latest release version of PyNuML, and all its dependencies.
@@ -42,7 +42,7 @@ This conda environment includes the latest release version of PyNuML, and all it
 
 Although installation via the numl conda environment described above is strongly recommended, PyNuML can also be installed standalone. It can be installed via conda with
 ```
-conda install -c numl pynuml
+mamba install -c numl pynuml
 ```
 and via pip with
 ```

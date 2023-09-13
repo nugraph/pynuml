@@ -10,12 +10,12 @@ Installing **pynuml** requires an Anaconda installation that utilises `conda-for
 
 A conda environment for numl is available via the anaconda client, and can be installed using::
 
-    conda install -y anaconda-client
-    conda env create numl/numl
+    mamba install -y anaconda-client
+    mamba env create numl/numl
 
 Once installed, this environment will need to be activated at the start of each terminal session::
 
-    conda activate numl
+    mamba activate numl
 
 .. _Mambaforge: https://github.com/conda-forge/miniforge#mambaforge
 
@@ -26,7 +26,7 @@ Installing with Anaconda
 
 It is also possible to install **pynuml** on its own via Anaconda, using the **numl** channel::
 
-    conda install -c numl pynuml
+    mamba install -c numl pynuml
 
 Installing with pip
 -------------------
