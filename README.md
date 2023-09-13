@@ -26,25 +26,36 @@ PyNuML also provides standard tools for the production of ML inputs, taking Pand
 
 ### Dependencies
 
-In order to correctly install all dependency packages, it's recommended to work within an Anaconda installation with NuML dependencies installed. If you don't already have Anaconda installed, we recommend using [Mambaforge](https://github.com/conda-forge/miniforge). A conda environment file is available [here](https://raw.githubusercontent.com/vhewes/numl-docker/main/numl.yml), which you can install by running
+In order to correctly install all dependency packages, it's recommended to work within an Anaconda installation with NuML dependencies installed. If you don't already have Anaconda installed, we recommend using [Mambaforge](https://github.com/conda-forge/miniforge). A conda environment file is available via the anaconda client, and can be installed by running
 ```
-conda env create -f numl.yml
+conda install -y anaconda-client
+conda env create numl/numl
 ```
 This will install all dependencies necesssary for working with NuML. Once this environment is installed, it can be activated in a terminal session by running
 ```
 conda activate numl
 ```
 
+This conda environment includes the latest release version of PyNuML, and all its dependencies.
+
 ### Installation
 
-PyNuML can be installed via `pip` with
-```pip install pynuml```
+Although installation via the numl conda environment described above is strongly recommended, PyNuML can also be installed standalone. It can be installed via conda with
+```
+conda install -c numl pynuml
+```
+and via pip with
+```
+pip install pynuml
+```
 
-Alternatively, for development purposes one can clone the repository and install an editable version:
-
+For those who wish to contribute to developing PyNuML, or work with the current development build, the repository can be cloned and installed in editable mode using pip:
 ```
 git clone https://github.com/vhewes/pynuml
 pip install -e ./pynuml
 ```
 
-If installed using this method, any modifications made to your local PyNuML release will be reflected in the `pynuml` module when imported at runtime.
+If installed using this method, any modifications made to your local PyNuML release will be reflected in the `pynuml` module when imported at runtime. Again, using the numl conda environment is recommended -- for developers, the user can simply follow the instructions above to create a numl conda environment, and then override their conda installion of pynuml with the local repository by running
+```
+pip install --no-deps -e ./pynuml
+```
