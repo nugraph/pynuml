@@ -6,7 +6,7 @@ from plotly.graph_objects import FigureWidget
 class GraphPlot:
     def __init__(self,
                  planes: list[str],
-                 classes: list[str]
+                 classes: list[str],
                  filter_threshold: float = 0.5):
         self._planes = planes
         self._classes = classes
