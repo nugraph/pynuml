@@ -2,6 +2,7 @@ import pandas as pd
 from torch_geometric.data import Batch, HeteroData
 import plotly.express as px
 from plotly.graph_objects import FigureWidget
+import warnings
 
 class GraphPlot:
     def __init__(self,
@@ -14,6 +15,11 @@ class GraphPlot:
         self._cmap = { c: px.colors.qualitative.Plotly[i] for i, c in enumerate(classes) }
         self._cmap['background'] = 'lightgrey'
         self.filter_threshold = filter_threshold
+
+        # temporarily silence this pandas warning triggered by plotly,
+        # which we don't have any power to fix but will presumably
+        # be fixed on their end at some point
+        warnings.filterwarnings("ignore", ".*The default of observed=False is deprecated and will be changed to True in a future version of pandas.*")
 
     def to_dataframe(self, data: HeteroData):
         def to_categorical(arr):
