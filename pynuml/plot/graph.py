@@ -53,7 +53,7 @@ class GraphPlot:
              data: HeteroData,
              target: str = 'hits',
              how: str = 'none',
-             filter: str = 'none',
+             filter: str = 'show',
              width: int = None,
              height: int = None) -> FigureWidget:
 
@@ -133,6 +133,10 @@ class GraphPlot:
         if filter == 'none':
             # don't do any filtering
             pass
+        elif filter == 'show':
+            # show hits predicted to be background in grey
+            if target == 'semantic' and how == 'pred':
+                df.x_semantic[df.x_filter < self.filter_threshold] = 'background'
         elif filter == 'true':
             # remove true background hits
             df = df[df.y_filter.values]
@@ -142,7 +146,7 @@ class GraphPlot:
             df = df[df.x_filter > self.filter_threshold]
             opts['title'] += ' (filtered by prediction)'
         else:
-            raise Exception('"filter" must be one of "none", "true" or "pred.')
+            raise Exception('"filter" must be one of "none", "show", "true" or "pred".')
 
         fig = px.scatter(df, x='wire', y='time', facet_col='plane',
                          width=width, height=height, **opts)
