@@ -56,7 +56,7 @@ class GraphPlot:
         # no colour
         if target == 'hits':
             opts = {
-                'title': 'Graph hits'
+                'title': 'Graph hits',
             }
 
         # semantic labels
@@ -66,21 +66,21 @@ class GraphPlot:
                     'title': 'True semantic labels',
                     'labels': { 'y_semantic': 'Semantic label' },
                     'color': 'y_semantic',
-                    'color_discrete_map': self._cmap
+                    'color_discrete_map': self._cmap,
                 }
             elif how == 'pred':
                 opts = {
                     'title': 'Predicted semantic labels',
                     'labels': { 'x_semantic': 'Semantic label' },
                     'color': 'x_semantic',
-                    'color_discrete_map': self._cmap
+                    'color_discrete_map': self._cmap,
                 }
             elif how in self._classes:
                 opts = {
                     'title': f'Predicted semantic label strength for {how} class',
                     'labels': { how: f'{how} probability' },
                     'color': how,
-                    'color_continuous_scale': px.colors.sequential.Reds
+                    'color_continuous_scale': px.colors.sequential.Reds,
                 }
             else:
                 raise Exception('for semantic labels, "how" must be one of "true", "pred" or the name of a class.')
@@ -91,13 +91,13 @@ class GraphPlot:
                 opts = {
                     'title': 'True instance labels',
                     'labels': { 'y_instance': 'Instance label' },
-                    'color': 'y_instance'
+                    'color': 'y_instance',
                 }
             elif how == 'pred':
                 opts = {
                     'title': 'Predicted instance labels',
                     'labels': { 'x_instance': 'Instance label' },
-                    'color': 'x_instance'
+                    'color': 'x_instance',
                 }
             else:
                 raise Exception('for instance labels, "how" must be one of "true" or "pred".')
@@ -116,7 +116,7 @@ class GraphPlot:
                     'title': 'Predicted filter labels',
                     'labels': { 'x_filter': 'Filter label' },
                     'color': 'x_filter',
-                    'color_continuous_scale': px.colors.sequential.Reds
+                    'color_continuous_scale': px.colors.sequential.Reds,
                 }
             else:
                 raise Exception('for filter labels, "how" must be one of "true" or "pred".')
