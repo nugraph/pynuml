@@ -12,8 +12,6 @@ class GraphPlot:
         self._labels = pd.CategoricalDtype(['background']+classes, ordered=True)
         self._cmap = { c: px.colors.qualitative.Plotly[i] for i, c in enumerate(classes) }
         self._cmap['background'] = 'lightgrey'
-        self._data = None
-        self._df = None
 
     def to_dataframe(self, data: HeteroData):
         def to_categorical(arr):
@@ -51,9 +49,7 @@ class GraphPlot:
              width: int = None,
              height: int = None) -> FigureWidget:
 
-        if data is not self._data:
-            self._data = data
-            self._df = self.to_dataframe(data)
+        df = self.to_dataframe(data)
 
         # no colour
         if target == 'hits':
@@ -127,12 +123,15 @@ class GraphPlot:
             raise Exception('"target" must be one of "hits", "semantic", "instance" or "filter".')
 
         if filter == 'none':
-            df = self._df
+            # don't do any filtering
+            pass
         elif filter == 'true':
-            df = self._df[self._df.y_filter.values]
+            # remove true background hits
+            df = df[df.y_filter.values]
             opts['title'] += ' (filtered by truth)'
         elif filter == 'pred':
-            df = self._df[self._df.x_filter > 0.5]
+            # remove predicted background hits
+            df = df[df.x_filter > 0.5]
             opts['title'] += ' (filtered by prediction)'
         else:
             raise Exception('"filter" must be one of "none", "true" or "pred.')
