@@ -6,12 +6,14 @@ from plotly.graph_objects import FigureWidget
 class GraphPlot:
     def __init__(self,
                  planes: list[str],
-                 classes: list[str]):
+                 classes: list[str]
+                 filter_threshold: float = 0.5):
         self._planes = planes
         self._classes = classes
         self._labels = pd.CategoricalDtype(['background']+classes, ordered=True)
         self._cmap = { c: px.colors.qualitative.Plotly[i] for i, c in enumerate(classes) }
         self._cmap['background'] = 'lightgrey'
+        self.filter_threshold = filter_threshold
 
     def to_dataframe(self, data: HeteroData):
         def to_categorical(arr):
@@ -131,7 +133,7 @@ class GraphPlot:
             opts['title'] += ' (filtered by truth)'
         elif filter == 'pred':
             # remove predicted background hits
-            df = df[df.x_filter > 0.5]
+            df = df[df.x_filter > self.filter_threshold]
             opts['title'] += ' (filtered by prediction)'
         else:
             raise Exception('"filter" must be one of "none", "true" or "pred.')
