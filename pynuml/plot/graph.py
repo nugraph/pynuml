@@ -110,7 +110,7 @@ class GraphPlot:
                     'title': 'True filter labels',
                     'labels': { 'y_filter': 'Filter label' },
                     'color': 'y_filter',
-                    'color_continuous_scale': px.colors.sequential.Reds
+                    'color_discrete_map': { 0: 'coral', 1: 'mediumseagreen' },
                 }
             elif how == 'pred':
                 opts = {
