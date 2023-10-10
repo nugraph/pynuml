@@ -9,14 +9,15 @@ class GraphPlot:
                  classes: list[str]):
         self._planes = planes
         self._classes = classes
-        self._labels = pd.CategoricalDtype(classes, ordered=True)
+        self._labels = pd.CategoricalDtype(['background']+classes, ordered=True)
         self._cmap = { c: px.colors.qualitative.Plotly[i] for i, c in enumerate(classes) }
+        self._cmap['background'] = 'lightgrey'
         self._data = None
         self._df = None
 
     def to_dataframe(self, data: HeteroData):
         def to_categorical(arr):
-            return pd.Categorical.from_codes(codes=arr, dtype=self._labels)
+            return pd.Categorical.from_codes(codes=arr+1, dtype=self._labels)
         if isinstance(data, Batch):
             raise Exception('to_dataframe does not support batches!')
         dfs = []
