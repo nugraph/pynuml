@@ -1,0 +1,47 @@
+{% set name = "pynuml" %}
+{% set version = "23.9.0" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  url: https://pypi.io/packages/source/{{ name[0] }}/{{ name }}/pynuml-{{ version }}.tar.gz
+  sha256: 77ea8c9df541351adeb249594cce27d742973ee82a0d7f2ad8cdcffa9d3fa6b1
+
+build:
+  noarch: python
+  script: {{ PYTHON }} -m pip install . -vv
+  number: 0
+
+requirements:
+  host:
+    - python >=3.7
+    - flit >=3.2,<4
+    - pip
+  run:
+    - python >=3.7
+    - h5py >=3.7.0
+    - mpi4py
+    - pandas
+    - particle
+    - plotly
+    - pytorch >=1.12.1
+    - pyg >=2.1.0
+
+test:
+  imports:
+    - pynuml
+  commands:
+    - pip check
+  requires:
+    - pip
+
+about:
+  summary: Standardised ML input processing for particle physics
+  license: MIT
+  license_file: LICENSE
+
+extra:
+  recipe-maintainers:
+    - vhewes

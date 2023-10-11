@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 from mpi4py import MPI
 
-
 class Event:
     def __init__(self,
                  index: int,
@@ -34,6 +33,13 @@ class Event:
             raise Exception('Key must be a string!')
         return self.data[key]
 
+    def __str__(self):
+        ret = f'event {self.event_id}\n'
+        for group, df in self.data.items():
+            ret += f'  {group} ({df.shape[0]} rows):\n'
+            for key in df.keys():
+                ret += f'    {key}\n'
+        return ret
 
 class File:
     def __init__(self, fname: str, parKey: str = "/event_table/event_id"):

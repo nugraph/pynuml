@@ -271,6 +271,7 @@ class StandardLabels:
                     310: neutral_pions_kaons_labeler,
                     130: neutral_pions_kaons_labeler,
                     113: neutral_pions_kaons_labeler,
+                    411: kaon_labeler, # D meson
                     11: electron_positron_labeler,
                     22: gamma_labeler
                 }
