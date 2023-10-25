@@ -144,7 +144,7 @@ class StandardLabels:
                             slc = self.delta
                     elif part.end_process == 'StepLimiter' or part.end_process == 'annihil' \
                         or part.end_process == 'eBrem' or part.start_process == 'hBertiniCaptureAtRest' \
-                        or part.end_process == 'FastScintillation':
+                        or part.end_process == 'FastScintillation' or part.end_process == 'msc':
                         sl = self.diffuse
                         slc = self.diffuse
                     else:
