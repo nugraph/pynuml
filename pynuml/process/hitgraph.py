@@ -77,6 +77,12 @@ class HitGraphProducer(ProcessorBase):
         hits = evt['hit_table']
         spacepoints = evt['spacepoint_table'].reset_index(drop=True)
 
+        # discard any events with pathologically large hit integrals
+        # this is a hotfix that should be removed once the dataset is fixed
+        if hits.integral.max() > 1e6:
+            print('found event with pathologically large hit integral, skipping')
+            return evt.name, None
+
         # handle energy depositions
         if self.filter_hits or self.semantic_labeller:
             edeps = evt['edep_table']
