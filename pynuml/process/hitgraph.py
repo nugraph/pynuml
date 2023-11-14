@@ -161,7 +161,7 @@ class HitGraphProducer(ProcessorBase):
             data[p].id = torch.tensor(plane_hits['hit_id'].values).long()
 
             # 2D edges
-            self.transform(data[p])
+            data[p] = self.transform(data[p])
             data[p, 'plane', p].edge_index = data[p].edge_index
             del data[p].edge_index
 
