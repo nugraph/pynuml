@@ -35,7 +35,7 @@ class GraphPlot:
             df['y_filter'] = plane['y_semantic'] != -1
             mask = df.y_filter.values
             df['y_semantic'] = to_categorical(plane['y_semantic'])
-            df['y_instance'] = plane['y_instance'].numpy()
+            df['y_instance'] = pd.Categorical(plane['y_instance'].numpy())
             if 'x_semantic' in plane.keys():
                 df['x_semantic'] = to_categorical(plane['x_semantic'].argmax(dim=-1).detach())
                 df[self._classes] = plane['x_semantic'].detach()
@@ -98,12 +98,14 @@ class GraphPlot:
                     'title': 'True instance labels',
                     'labels': { 'y_instance': 'Instance label' },
                     'color': 'y_instance',
+                    'color_discrete_map': self._cmap,
                 }
             elif how == 'pred':
                 opts = {
                     'title': 'Predicted instance labels',
                     'labels': { 'x_instance': 'Instance label' },
                     'color': 'x_instance',
+                    'color_discrete_map': self._cmap,
                 }
             else:
                 raise Exception('for instance labels, "how" must be one of "true" or "pred".')
