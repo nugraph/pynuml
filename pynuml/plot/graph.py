@@ -107,6 +107,7 @@ class GraphPlot:
                     'title': 'True instance labels',
                     'labels': { 'y_instance': 'Instance label' },
                     'color': 'y_instance',
+                    'symbol': 'y_semantic',
                     'color_discrete_map': self._cmap,
                 }
             elif how == 'pred':
@@ -114,6 +115,7 @@ class GraphPlot:
                     'title': 'Predicted instance labels',
                     'labels': { 'x_instance': 'Instance label' },
                     'color': 'x_instance',
+                    'symbol': 'x_semantic',
                     'color_discrete_map': self._cmap,
                 }
             else:
