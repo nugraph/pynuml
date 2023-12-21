@@ -161,7 +161,26 @@ class GraphPlot:
         else:
             raise Exception('"filter" must be one of "none", "show", "true" or "pred".')
 
-        opts['hover_data'] = []
+        # set hover data
+        opts['hover_data'] = {
+            'y_semantic': True,
+            'wire': ':.1f',
+            'time': ':.1f',
+        }
+        opts['labels'] = {
+            'y_filter': 'filter truth',
+            'y_semantic': 'semantic truth',
+            'y_instance': 'instance truth',
+        }
+        if 'x_filter' in df:
+            opts['hover_data']['x_filter'] = True
+            opts['labels']['x_filter'] = 'filter prediction'
+        if 'x_semantic' in df:
+            opts['hover_data']['x_semantic'] = True
+            opts['labels']['x_semantic'] = 'semantic prediction'
+        if 'x_instance' in df:
+            opts['hover_data']['x_instance'] = ':.4f'
+            opts['labels']['x_instance'] = 'instance prediction'
         for col in self._truth_cols:
             if col in df.keys():
                 opts['hover_data'].append(col)
