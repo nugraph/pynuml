@@ -182,8 +182,8 @@ class GraphPlot:
             opts['hover_data']['x_instance'] = ':.4f'
             opts['labels']['x_instance'] = 'instance prediction'
         for col in self._truth_cols:
-            if col in df.keys():
-                opts['hover_data'].append(col)
+            if col in df:
+                opts['hover_data'][col] = True
 
         fig = px.scatter(df, x='wire', y='time', facet_col='plane',
                          width=width, height=height, **opts)
