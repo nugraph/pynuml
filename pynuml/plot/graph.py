@@ -36,7 +36,7 @@ class GraphPlot:
             df['y_filter'] = plane['y_semantic'] != -1
             mask = df.y_filter.values
             df['y_semantic'] = to_categorical(plane['y_semantic'])
-            df['y_instance'] = pd.Categorical(plane['y_instance'].numpy())
+            df['y_instance'] = plane['y_instance'].numpy().astype(str)
 
             # add detailed truth information if it's available
             for col in self._truth_cols:
