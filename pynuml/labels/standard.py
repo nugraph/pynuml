@@ -13,7 +13,6 @@ class StandardLabels:
             'hadron',
             'shower',
             'michel',
-            'delta',
             'diffuse',
             'invisible'
         ]
@@ -59,10 +58,6 @@ class StandardLabels:
         return self.index('michel')
 
     @property
-    def delta(self):
-        return self.index('delta')
-
-    @property
     def diffuse(self):
         return self.index('diffuse')
     
@@ -74,7 +69,7 @@ class StandardLabels:
                  part: pd.DataFrame):
         '''Standard labelling function.
 
-        Pion, Muon, Kaon, Hadron, EM shower, Michel electron, Delta ray,
+        Pion, Muon, Kaon, Hadron, EM shower, Michel electron,
         diffuse activity.
         '''
 
@@ -125,23 +120,19 @@ class StandardLabels:
                         slc = None
                     elif part.start_process == 'muIoni' or part.start_process == 'hIoni' \
                         or part.start_process == 'eIoni':
-                        if part.momentum <= 0.01:
-                            if part.start_process == 'muIoni':
-                                sl = self.muon
-                                slc = None
-                            elif part.start_process == 'hIoni':
-                                if abs(parent_type) == 2212:
-                                    sl = self.hadron
-                                    if part.momentum <= 0.0015: sl = self.diffuse
-                                else:
-                                    sl = self.pion
-                                slc = None
+                        if part.start_process == 'muIoni':
+                            sl = self.muon
+                            slc = None
+                        elif part.start_process == 'hIoni':
+                            if abs(parent_type) == 2212:
+                                sl = self.hadron
+                                if part.momentum <= 0.0015: sl = self.diffuse
                             else:
-                                sl = self.diffuse
-                                slc = None
+                                sl = self.pion
+                            slc = None
                         else:
-                            sl = self.delta
-                            slc = self.delta
+                            sl = self.diffuse
+                            slc = None
                     elif part.end_process == 'StepLimiter' or part.end_process == 'annihil' \
                         or part.end_process == 'eBrem' or part.start_process == 'hBertiniCaptureAtRest' \
                         or part.end_process == 'FastScintillation' or part.start_process == 'muPairProd' \
@@ -223,7 +214,7 @@ class StandardLabels:
                     il = part.parent_id
                 elif (sl == self.pion or sl == self.hadron) and part.start_process == 'hIoni':
                     il = part.parent_id
-                elif sl != self.diffuse and sl != self.delta and sl != self.invisible:
+                elif sl != self.diffuse and sl != self.invisible:
                     il = part.g4_id
                     if sl == self.shower: ilc = il
                     if sl == self.michel: ilc = il
