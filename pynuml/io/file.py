@@ -1,5 +1,6 @@
 """HDF5 file interface."""
 import sys
+import os.path
 from typing import Any, Callable, Dict, List, Tuple
 
 import h5py
@@ -98,7 +99,6 @@ class File:
             raise Exception(f'Error: dataset {parKey} is not found in file {fname}!')
 
         # parse the name of data partitioning key
-        import os.path
         self._parTable = os.path.dirname(parKey)
         # remove leading '/'
         if self._parTable[0] == '/': self._parTable = self._parTable[1:]
