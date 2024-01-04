@@ -15,7 +15,7 @@ class Event:
     def __init__(self,
                  index: int,
                  event_id: np.ndarray,
-                 data: Dict[str, pd.DataFrame] = {}):
+                 data: Dict[str, pd.DataFrame]):
         """Event class constructor.
 
         This class is called internally by pynuml.io.File, and this class's
@@ -23,7 +23,7 @@ class Event:
         """
         self.index = index
         self.event_id = event_id
-        self.data = data.copy()
+        self.data = data
 
     @property
     def name(self) -> str:
