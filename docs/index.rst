@@ -11,10 +11,12 @@ pynuml Documentation
 
 .. toctree::
    :maxdepth: 1
-   :caption: Installation
+   :caption: Getting Started
 
-   install/installation
+   installation
 
 .. toctree::
-   :maxdepth: 1
-   :caption: Getting Started
+   :maxdepth: 2
+   :caption: Code
+
+   io
