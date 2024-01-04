@@ -26,26 +26,26 @@ class Event:
         self.data = data.copy()
 
     @property
-    def name(self):
+    def name(self) -> str:
         """Returns a string identifier for the event."""
         r, sr, evt = self.event_id
         return f'r{r}_sr{sr}_evt{evt}'
 
     def __setitem__(self, key: str, item: pd.DataFrame):
-        if type(key) != str:
-            raise Exception('Key must be a string!')
-        if type(item) != pd.DataFrame:
-            raise Exception('Value must be a pandas DataFrame!')
         """Append a DataFrame to the event  key."""
+        if key is not str:
+            raise TypeError('Key must be a string!')
+        if item is not pd.DataFrame:
+            raise TypeError('Value must be a pandas DataFrame!')
         self.data[key] = item
 
     def __getitem__(self, key: str):
-        if type(key) != str:
-            raise Exception('Key must be a string!')
         """Retrieve the DataFrame given a key string."""
+        if key is not str:
+            raise TypeError('Key must be a string!')
         return self.data[key]
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Print summary information on event and its data types."""
         ret = f'event {self.event_id}\n'
         for group, df in self.data.items():
@@ -56,7 +56,6 @@ class Event:
 
 
 class File:
-    def __init__(self, fname: str, parKey: str = "/event_table/event_id"):
     """Wrapper class for a pynuml event HDF5 file.
 
     The File class parses the indexing metadata stored in the file and
@@ -64,6 +63,7 @@ class File:
     with MPI.
     """
 
+    def __init__(self, fname: str, par_key: str = "/event_table/event_id"):
         """File interface constructor.
 
         File arguments:
@@ -95,46 +95,48 @@ class File:
         self._fd = h5py.File(fname, "r", driver='mpio', comm=MPI.COMM_WORLD)
 
         # check if data partitioning key datasets exists in the file
-        if parKey not in self._fd.keys():
-            raise Exception(f'Error: dataset {parKey} is not found in file {fname}!')
+        if par_key not in self._fd.keys():
+            raise KeyError((f'Error: dataset {par_key} not found in file '
+                            '{fname}!'))
 
         # parse the name of data partitioning key
-        self._parTable = os.path.dirname(parKey)
+        self._par_table = os.path.dirname(par_key)
         # remove leading '/'
-        if self._parTable[0] == '/': self._parTable = self._parTable[1:]
+        if self._par_table[0] == '/':
+            self._par_table = self._par_table[1:]
 
         # extract dataset names: partitioning key, seq, and seq_cnt
-        self._par_name = os.path.basename(parKey)
+        self._par_name = os.path.basename(par_key)
         self._seq_name = self._par_name + ".seq"
         self._cnt_name = self._par_name + ".seq_cnt"
 
-        # obtain metadata of dataset parKey, later the dataset will be read
+        # obtain metadata of dataset par_key, later the dataset will be read
         # into self._index as a numpy array in data_partition()
-        self._index = self._fd.get(parKey)
+        self._index = self._fd.get(par_key)
         self._num_events = self._index.shape[0]
 
-        # self._groups is a python list, each member is a 2-element list consisting
-        # of a group name, and a python list of dataset names
+        # self._groups is a python list, each member is a 2-element list
+        # consisting of a group name, and a python list of dataset names
         self._groups = []
 
-        # a python dictionary storing a sequence-count dataset in each group, keys
-        # are group names, values are the sequence-count dataset subarrays assigned
-        # to this process
+        # a python dictionary storing a sequence-count dataset in each group,
+        # keys are group names, values are the sequence-count dataset subarrays
+        # assigned to this process
         self._seq_cnt = {}
         self._evt_seq = {}
 
         self._whole_seq_cnt = {}
-        self._whole_seq     = {}
+        self._whole_seq = {}
 
         self._use_seq_cnt = True
 
         # partition based on event amount of particle table (default)
         self._evt_part = 2
 
-        # a python nested dictionary storing datasets of each group read from the
-        # input file. keys of self._data are group names, values are python
-        # dictionaries, each has names of dataset in that group as keys, and values
-        # storing dataset subarrays
+        # a python nested dictionary storing datasets of each group read from
+        # the input file. keys of self._data are group names, values are python
+        # dictionaries, each has names of dataset in that group as keys, and
+        # values storing dataset subarrays
         self._data = {}
 
         # _starts: data partition start indeices of all processes
@@ -142,15 +144,16 @@ class File:
         starts = None
         counts = None
 
-        # starting array index of parKey assigned to this process
+        # starting array index of par_key assigned to this process
         self._my_start = -1
 
-        # number of array elements of parKey assigned to this process
+        # number of array elements of par_key assigned to this process
         self._my_count = -1
 
     def __del__(self):
-        if hasattr(self, '_fd') and self._fd: self._fd.close()
         """Ensure HDF5 file is closed upon deletion."""
+        if hasattr(self, '_fd') and self._fd:
+            self._fd.close()
 
     def __len__(self):
         """Count number of unique event IDs in file."""
@@ -162,7 +165,8 @@ class File:
         for k1 in self._fd.keys():
             ret += f"{k1}:\n"
             for k2 in self._fd[k1].keys():
-                if self._seq_name in k2: continue
+                if self._seq_name in k2:
+                    continue
                 ret += f"    {k2}\n"
         return ret
 
@@ -170,7 +174,7 @@ class File:
         """Load the event at the provided index from file."""
         self.read_data(idx, 1)
         ret = self.build_evt(idx, 1)
-        return ret[0] if len(ret) else None
+        return ret[0] if len(ret) > 0 else None
 
     def check_shape0(self,
                      group: str,
@@ -191,7 +195,7 @@ class File:
             # retrieve all the dataset names of the group
             keys = list(self._fd[group].keys())
             # datasets seq and seq_cnt are not needed
-            if group != self._parTable and self._par_name in keys: keys.remove(self._par_name)
+            if group != self._par_table and self._par_name in keys: keys.remove(self._par_name)
             if self._seq_name in keys: keys.remove(self._seq_name)
             if self._cnt_name in keys: keys.remove(self._cnt_name)
         else:
