@@ -1,3 +1,4 @@
+"""HDF5 file interface."""
 import sys
 from abc import ABC
 from typing import Any, Callable, Dict, List, Tuple
@@ -7,17 +8,26 @@ import numpy as np
 import pandas as pd
 from mpi4py import MPI
 
+
 class Event:
+    """Container class for a single event and its dataframes."""
+
     def __init__(self,
                  index: int,
                  event_id: np.ndarray,
                  data: Dict[str, pd.DataFrame] = {}):
+        """Event class constructor.
+
+        This class is called internally by pynuml.io.File, and this class's
+        constructor is not intended to be invoked by user directly.
+        """
         self.index = index
         self.event_id = event_id
         self.data = data.copy()
 
     @property
     def name(self):
+        """Returns a string identifier for the event."""
         r, sr, evt = self.event_id
         return f'r{r}_sr{sr}_evt{evt}'
 
@@ -26,14 +36,17 @@ class Event:
             raise Exception('Key must be a string!')
         if type(item) != pd.DataFrame:
             raise Exception('Value must be a pandas DataFrame!')
+        """Append a DataFrame to the event  key."""
         self.data[key] = item
 
     def __getitem__(self, key: str):
         if type(key) != str:
             raise Exception('Key must be a string!')
+        """Retrieve the DataFrame given a key string."""
         return self.data[key]
 
     def __str__(self):
+        """Print summary information on event and its data types."""
         ret = f'event {self.event_id}\n'
         for group, df in self.data.items():
             ret += f'  {group} ({df.shape[0]} rows):\n'
@@ -41,8 +54,22 @@ class Event:
                 ret += f'    {key}\n'
         return ret
 
+
 class File:
     def __init__(self, fname: str, parKey: str = "/event_table/event_id"):
+    """Wrapper class for a pynuml event HDF5 file.
+
+    The File class parses the indexing metadata stored in the file and
+    efficiently partitions the data into chunks for parallel processing
+    with MPI.
+    """
+
+        """File interface constructor.
+
+        File arguments:
+        - fname:  name of input HDF5 file
+        - par_key: name of partitioning key dataset
+        """
         self._colmap = {
             "event_table": {
                 "nu_dir": [ "nu_dir_x", "nu_dir_y", "nu_dir_z" ],
@@ -124,12 +151,14 @@ class File:
 
     def __del__(self):
         if hasattr(self, '_fd') and self._fd: self._fd.close()
+        """Ensure HDF5 file is closed upon deletion."""
 
     def __len__(self):
-        # inquire the number of unique event IDs in the input file
+        """Count number of unique event IDs in file."""
         return self._num_events
 
     def __str__(self):
+        """Print enabled HDF5 groups and datasets."""
         ret = ""
         for k1 in self._fd.keys():
             ret += f"{k1}:\n"
@@ -139,7 +168,7 @@ class File:
         return ret
 
     def __getitem__(self, idx: int):
-        """load a single event from file"""
+        """Load the event at the provided index from file."""
         self.read_data(idx, 1)
         ret = self.build_evt(idx, 1)
         return ret[0] if len(ret) else None
