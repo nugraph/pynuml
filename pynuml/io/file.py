@@ -1,6 +1,5 @@
 """HDF5 file interface."""
 import sys
-from abc import ABC
 from typing import Any, Callable, Dict, List, Tuple
 
 import h5py
