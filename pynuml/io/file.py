@@ -81,15 +81,15 @@ class File:
     The File class parses the indexing metadata stored in the file and
     efficiently partitions the data into chunks for parallel processing
     with MPI.
+
+    Args:
+        fname: name of input HDF5 file.
+        par_key: name of partitioning key dataset.
     """
 
-    def __init__(self, fname: str, par_key: str = "/event_table/event_id"):
-        """File interface constructor.
-
-        File arguments:
-        - fname:  name of input HDF5 file
-        - par_key: name of partitioning key dataset
-        """
+    def __init__(self, fname: str,
+                 par_key: str = "/event_table/event_id") -> None:
+        """File interface constructor."""
         self._colmap = {
             "event_table": {
                 "nu_dir": ["nu_dir_x", "nu_dir_y", "nu_dir_z"],
@@ -166,10 +166,10 @@ class File:
         # values storing dataset subarrays
         self._data = {}
 
-        # _starts: data partition start indeices of all processes
+        # _starts: data partition start indices of all processes
         # _counts: data cmount assigned to each process
-        starts = None
-        counts = None
+        self._starts = None
+        self._counts = None
 
         # starting array index of par_key assigned to this process
         self._my_start = -1
@@ -197,7 +197,7 @@ class File:
                 ret += f"    {k2}\n"
         return ret
 
-    def __getitem__(self, idx: int):
+    def __getitem__(self, idx: int) -> Event:
         """Load the event at the provided index from file."""
         self.read_data(idx, 1)
         ret = self.build_evt(idx, 1)
@@ -206,7 +206,6 @@ class File:
     def check_shape0(self,
                      group: str,
                      keys: List[str]) -> None:
-        """Check if shape[0] of all datasets in keys are of the same size."""
         shape0 = self._fd[group][keys[0]].shape[0]
         for k in keys[1:]:
             if k == self._cnt_name:
@@ -220,7 +219,13 @@ class File:
     def add_group(self,
                   group: str,
                   keys: List[str] = None) -> None:
-        """Add HDF5 group and datasets to those retrieved during processing."""
+        """Add HDF5 group and datasets to those retrieved during processing.
+
+        Args:
+            group: Name of HDF5 group.
+            keys: Optional list of dataset names within group. If not passed,
+                  all keys in group will be added.
+        """
         # if no keys specified, append all columns in HDF5 group
         if not keys:
             # retrieve all the dataset names of the group
@@ -273,13 +278,12 @@ class File:
     def get_dataframe(self,
                       group: str,
                       keys: List[str] = None) -> pd.DataFrame:
-        """Retrieve dataframe from file.
+        """Read HDF5 group into pandas DataFrame.
 
-        This function takes the name of an HDF5 group and (optionally) a list
-        of column keys, and returns a pandas DataFrame containing the requested
-        data across all events contained in the file. If no list of keys is
-        passed, the code will automatically load all keys contained in the
-        group.
+        Args:
+            group: Name of HDF5 group.
+            keys: Optional list of dataset names within group. If not passed,
+                  all keys in group will be loaded.
         """
         if not keys:
             keys = list(self._fd[group].keys())
@@ -323,7 +327,6 @@ class File:
         return self._my_index[idx - self._my_start]
 
     def read_seq(self) -> None:
-        """Read metadata sequencing information."""
         for group, _ in self._groups:
             key = f"{group}/{self._seq_name}"
             try:
@@ -335,7 +338,6 @@ class File:
                 sys.exit(1)
 
     def read_seq_cnt(self) -> None:
-        """Read metadata sequencing information."""
         for group, _ in self._groups:
             key = f"{group}/{self._cnt_name}"
             try:
@@ -483,7 +485,7 @@ class File:
 
         # each process reads its share of dataset and stores it in a numpy
         # array
-        self._my_index = np.array(self._index[self._my_start : self._my_start + self._my_count, :])
+        self._my_index = np.array(self._index[self._my_start: self._my_start + self._my_count, :])
 
     def binary_search_min(self, key, base, nmemb):
         """Binary search to find minimum."""
@@ -518,24 +520,27 @@ class File:
         rank = comm.Get_rank()
         nprocs = comm.Get_size()
 
-        displ  = np.zeros([nprocs], dtype=int)
-        count  = np.zeros([nprocs], dtype=int)
+        displ = np.zeros([nprocs], dtype=int)
+        count = np.zeros([nprocs], dtype=int)
         bounds = np.zeros([nprocs, 2], dtype=int)
 
         all_evt_seq = None
         if rank == 0:
             # root reads the entire dataset self._seq_name, if not already
-            if not self._whole_seq: self.read_seq()
+            if not self._whole_seq:
+                self.read_seq()
 
             all_evt_seq = self._whole_seq[group]
             dim = len(all_evt_seq)
 
             # calculate displ, count to be used in scatterV for all processes
             for i in range(nprocs):
-                if self._counts[i] == 0: continue
+                if self._counts[i] == 0:
+                    continue
                 end = self._starts[i] + self._counts[i] - 1
-                bounds[i, 0] = self.binary_search_min(self._starts[i], all_evt_seq, dim)
-                bounds[i, 1] = self.binary_search_max(end,             all_evt_seq, dim)
+                bounds[i, 0] = self.binary_search_min(self._starts[i],
+                                                      all_evt_seq, dim)
+                bounds[i, 1] = self.binary_search_max(end, all_evt_seq, dim)
                 displ[i] = bounds[i, 0]
                 count[i] = bounds[i, 1] - bounds[i, 0] + 1
 
@@ -545,8 +550,6 @@ class File:
         comm.Scatter(bounds, lower_upper, root=0)
 
         # this process is assigned array indices from lower to upper
-        # print("group=",group," lower=",lower," upper=",upper," count=",upper-lower)
-
         lower = 0
         upper = 0
         if self._my_count > 0:
@@ -555,7 +558,8 @@ class File:
 
         # root scatters the subarray of evt_seq to all processes
         self._evt_seq[group] = np.zeros(upper - lower, dtype=np.int64)
-        comm.Scatterv([all_evt_seq, count, displ, MPI.LONG_LONG], self._evt_seq[group], root=0)
+        comm.Scatterv([all_evt_seq, count, displ, MPI.LONG_LONG],
+                      self._evt_seq[group], root=0)
 
         return lower, upper
 
@@ -563,18 +567,19 @@ class File:
         # return the lower and upper array indices of subarray assigned to this
         # process, using the partition sequence-count dataset
 
-        comm   = MPI.COMM_WORLD
-        rank   = comm.Get_rank()
+        comm = MPI.COMM_WORLD
+        rank = comm.Get_rank()
         nprocs = comm.Get_size()
 
-        displ   = np.zeros([nprocs], dtype=int)
-        count   = np.zeros([nprocs], dtype=int)
+        displ = np.zeros([nprocs], dtype=int)
+        count = np.zeros([nprocs], dtype=int)
         seq_cnt = np.zeros([nprocs, 2], dtype=int)
 
         all_seq_cnt = None
         if rank == 0:
             # root reads the entire dataset self._cnt_name, if not already
-            if not self._whole_seq_cnt: self.read_seq_cnt()
+            if not self._whole_seq_cnt:
+                self.read_seq_cnt()
 
             all_seq_cnt = self._whole_seq_cnt[group]
             dim = len(all_seq_cnt)
@@ -586,7 +591,7 @@ class File:
             seq_end = self._starts[recv_rank] + self._counts[recv_rank]
             seq_id = 0
             for i in range(dim):
-                if all_seq_cnt[i, 0] >= seq_end :
+                if all_seq_cnt[i, 0] >= seq_end:
                     seq_cnt[recv_rank, 1] = i - displ[recv_rank]
                     recv_rank += 1  # move on to the next receiver rank
                     seq_end = self._starts[recv_rank] + self._counts[recv_rank]
@@ -597,7 +602,6 @@ class File:
             # last receiver rank
             seq_cnt[recv_rank, 1] = dim - displ[recv_rank]
 
-            # print("starts=",self._starts," counts=",self._counts," displ=",displ," count=",count," seq_cnt=",seq_cnt )
             displ[:] *= 2
             count[:] = seq_cnt[:, 1] * 2
 
@@ -610,7 +614,8 @@ class File:
         self._seq_cnt[group] = np.empty([my_seq_cnt[1], 2], dtype=np.int64)
 
         # root scatters the subarray of evt_seq to all processes
-        comm.Scatterv([all_seq_cnt, count, displ, MPI.LONG_LONG], self._seq_cnt[group], root=0)
+        comm.Scatterv([all_seq_cnt, count, displ, MPI.LONG_LONG],
+                      self._seq_cnt[group], root=0)
 
         lower = 0
         upper = 0
@@ -619,15 +624,14 @@ class File:
             upper = my_seq_cnt[0] + np.sum(self._seq_cnt[group][:, 1])
 
         # this process is assigned array indices from lower to upper
-        # print("group=",group," lower=",lower," upper=",upper," count=",upper-lower)
-
         return lower, upper
 
     def read_data(self,
                   start: int,
                   count: int) -> None:
         # (sequentially) read subarrays of all datasets in all groups that fall
-        # in the range of self._seq_name, starting from 'start' and amount of 'count'
+        # in the range of self._seq_name, starting from 'start' and amount of
+        # 'count'
 
         for group, datasets in self._groups:
             if self._use_seq_cnt:
@@ -640,13 +644,15 @@ class File:
                 # all_seq_cnt[:,0] are all unique
                 ilower = np.searchsorted(all_seq_cnt[:,0], start)
                 iupper = np.searchsorted(all_seq_cnt[:,0], start+count)
-                self._seq_cnt[group] = np.array(all_seq_cnt[ilower:iupper], dtype=np.int64)
+                self._seq_cnt[group] = np.array(all_seq_cnt[ilower:iupper],
+                                                dtype=np.int64)
                 lower = np.sum(all_seq_cnt[0:ilower, 1])
                 upper = lower + np.sum(all_seq_cnt[ilower:iupper, 1])
             else:
                 # use evt_id.seq to calculate subarray boundaries
                 # root reads the entire dataset self._seq_name, if not already
-                if not self._whole_seq: self.read_seq()
+                if not self._whole_seq:
+                    self.read_seq()
                 all_evt_seq = self._whole_seq[group]
                 dim = len(all_evt_seq)
                 # search indices of start and end in all_seq
@@ -655,22 +661,22 @@ class File:
                 lower = self.binary_search_min(start, all_evt_seq, dim)
                 upper = self.binary_search_max(end,   all_evt_seq, dim)
                 upper += 1
-                self._evt_seq[group] = np.array(all_evt_seq[lower:upper], dtype=np.int64)
+                self._evt_seq[group] = np.array(all_evt_seq[lower:upper],
+                                                dtype=np.int64)
 
-            # print("read_data - group=",group,", lower=",lower," upper=",upper)
-
-            # Iterate through all the datasets and read the subarray from index lower
-            # to upper and store it into a dictionary with the names of group and
-            # dataset as the key.
+            # Iterate through all the datasets and read the subarray from index
+            # lower to upper and store it into a dictionary with the names of
+            # group and dataset as the key.
             self._data[group] = {}
             for dset in datasets:
                 # read subarray into a numpy array
-                self._data[group][dset] = np.array(self._fd[group][dset][lower : upper])
+                self._data[group][dset] = np.array(
+                    self._fd[group][dset][lower:upper])
 
         self._my_start = start
         self._my_count = count
         # read assigned partitioning key dataset into a numpy array
-        self._my_index = np.array(self._index[start : start + count, :])
+        self._my_index = np.array(self._index[start:start + count, :])
 
     def read_data_all(self,
                       use_seq_cnt: bool = True,
@@ -716,15 +722,14 @@ class File:
                 bnd_time += time_e - time_s
                 time_s = time_e
 
-            # print("read_data_all - group=",group,", lower=",lower," upper=",upper)
-
-            # Iterate through all the datasets and read the subarray from index lower
-            # to upper and store it into a dictionary with the names of group and
-            # dataset as the key.
+            # Iterate through all the datasets and read the subarray from index
+            # lower to upper and store it into a dictionary with the names of
+            # group and dataset as the key.
             self._data[group] = {}
             for dset in datasets:
                 # read subarray into a numpy array
-                self._data[group][dset] = np.array(self._fd[group][dset][lower : upper])
+                self._data[group][dset] = np.array(
+                    self._fd[group][dset][lower:upper])
 
             if profile:
                 time_e = MPI.Wtime()
@@ -732,20 +737,23 @@ class File:
                 time_s = time_e
 
         if profile:
-            rank   = MPI.COMM_WORLD.Get_rank()
+            rank = MPI.COMM_WORLD.Get_rank()
             nprocs = MPI.COMM_WORLD.Get_size()
 
             total_t = np.array([par_time, bnd_time, rds_time])
             max_total_t = np.zeros(3)
-            MPI.COMM_WORLD.Reduce(total_t, max_total_t, op=MPI.MAX, root = 0)
+            MPI.COMM_WORLD.Reduce(total_t, max_total_t, op=MPI.MAX, root=0)
             min_total_t = np.zeros(3)
-            MPI.COMM_WORLD.Reduce(total_t, min_total_t, op=MPI.MIN, root = 0)
+            MPI.COMM_WORLD.Reduce(total_t, min_total_t, op=MPI.MIN, root=0)
             if rank == 0:
-                print("---- Timing break down of the file read phase (in seconds) -------")
+                print(("---- Timing break down of the file read phase (in "
+                       "seconds) -------"))
                 if self._use_seq_cnt:
-                    print(f'Use "{self._cnt_name}" to calculate subarray boundaries')
+                    print((f'Use "{self._cnt_name}" to calculate subarray '
+                           'boundaries'))
                 else:
-                    print(f'Use "{self._seq_name}" to calculate subarray boundaries')
+                    print((f'Use "{self._seq_name}" to calculate subarray '
+                           'boundaries'))
 
                 print("data partitioning           time ", end='')
                 print("MAX=%8.2f  MIN=%8.2f" % (max_total_t[0], min_total_t[0]))
@@ -764,12 +772,15 @@ class File:
         # self._cnt_name into a python list containing Pandas DataFrames, one
         # for a unique event ID.
         if not self._groups:
-            raise Exception('cannot build event without adding any HDF5 groups')
+            raise RuntimeError(('cannot build event without adding any HDF5 '
+                                'groups'))
 
         ret_list = []
 
-        if start is None: start = self._my_start
-        if count is None: count = self._my_count
+        if start is None:
+            start = self._my_start
+        if count is None:
+            count = self._my_count
 
         num_miss = 0
 
@@ -793,8 +804,10 @@ class File:
             else:
                 for group in self._data.keys():
                     dim = len(self._evt_seq[group])
-                    lower = self.binary_search_min(idx, self._evt_seq[group], dim)
-                    upper = self.binary_search_max(idx, self._evt_seq[group], dim) + 1
+                    lower = self.binary_search_min(idx, self._evt_seq[group],
+                                                   dim)
+                    upper = self.binary_search_max(idx, self._evt_seq[group],
+                                                   dim) + 1
                     if lower < upper:
                         is_missing = False
                         break
@@ -806,8 +819,9 @@ class File:
 
             # for each event seq ID, create a dictionary, ret
             #   first item: key is "index" and value is the event seq ID
-            #   remaining items: key is group name and value is a Pandas DataFrame
-            #   containing the dataset subarray in this group with the event ID, idx
+            #   remaining items: key is group name and value is a Pandas
+            # DataFrame containing the dataset subarray in this group with the
+            # event ID, idx
             ret = Event(idx, self.index(idx))
 
             # Iterate through all groups
@@ -825,25 +839,25 @@ class File:
                             data_dataframe = pd.DataFrame(columns=self._cols(group, dataset))
                             dfs.append(data_dataframe)
                         ret[group] = pd.concat(dfs, axis="columns")
-                        # print("xxx",group," missing idx=",idx," _seq_cnt[0]=",self._seq_cnt[group][idx_grp[group], 0])
                         continue
 
                     lower = idx_start[group]
                     upper = self._seq_cnt[group][idx_grp[group], 1] + lower
 
-                    # print("group=",group," idx=",idx," lower=",lower," upper=",upper)
                     idx_start[group] += self._seq_cnt[group][idx_grp[group], 1]
                     idx_grp[group] += 1
 
                 else:
-                    # Note self._evt_seq stores event ID values and is already sorted in
-                    # an increasing order
+                    # Note self._evt_seq stores event ID values and is already
+                    # sorted in an increasing order
                     dim = len(self._evt_seq[group])
 
-                    # Find the local start and end row indices for this event ID, idx
-                    lower = self.binary_search_min(idx, self._evt_seq[group], dim)
-                    upper = self.binary_search_max(idx, self._evt_seq[group], dim) + 1
-                    # print("For idx=",idx, " lower=",lower, " upper=",upper)
+                    # Find the local start and end row indices for this event
+                    # ID, idx
+                    lower = self.binary_search_min(idx, self._evt_seq[group],
+                                                   dim)
+                    upper = self.binary_search_max(idx, self._evt_seq[group],
+                                                   dim) + 1
 
                 # dfs is a python list containing Pandas DataFrame objects
                 dfs = []
@@ -853,14 +867,14 @@ class File:
                         # In this case, create an empty numpy array
                         data = np.array([])
                     else:
-                        # array elements from lower to upper of this dataset have the
-                        # event ID == idx
-                        data = self._data[group][dataset][lower : upper]
+                        # array elements from lower to upper of this dataset
+                        # have the event ID == idx
+                        data = self._data[group][dataset][lower:upper]
 
                     # create a Pandas DataFrame to store the numpy array
                     df = pd.DataFrame(data, columns=self._cols(group, dataset))
                     for col in df.columns:
-                        if df[col].dtype == '|S64' or df[col].dtype == 'object':
+                        if df[col].dtype in ('|S64', 'object'):
                             df[col] = df[col].str.decode('utf-8')
                     dfs.append(df)
 
@@ -879,7 +893,6 @@ class File:
                 out: Callable[[Any, str], None]) -> None:
         '''Process all events in this data partition'''
         comm = MPI.COMM_WORLD
-        nprocs = comm.Get_size()
         rank = comm.Get_rank()
         if rank == 0:
             out.write_metadata(processor.metadata)
@@ -887,4 +900,5 @@ class File:
         evt_list = self.build_evt()
         for evt in evt_list:
             name, data = processor(evt)
-            if data is not None: out(name, data)
+            if data is not None:
+                out(name, data)
