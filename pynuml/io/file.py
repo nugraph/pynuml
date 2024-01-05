@@ -203,9 +203,9 @@ class File:
         ret = self.build_evt(idx, 1)
         return ret[0] if len(ret) > 0 else None
 
-    def check_shape0(self,
-                     group: str,
-                     keys: List[str]) -> None:
+    def _check_shape0(self,
+                      group: str,
+                      keys: List[str]) -> None:
         shape0 = self._fd[group][keys[0]].shape[0]
         for k in keys[1:]:
             if k == self._cnt_name:
@@ -245,7 +245,7 @@ class File:
 
         # if group does not already exist, just add it
         if not self._groups or group not in self._groups[:][0]:
-            self.check_shape0(group, keys)
+            self._check_shape0(group, keys)
             self._groups.append([group, keys])
             return
 
@@ -253,7 +253,7 @@ class File:
         # keys need to be added
         for g, k in self._groups:
             if g == group:
-                self.check_shape0(group, keys)
+                self._check_shape0(group, keys)
                 for key in keys:
                     if key not in k:
                         k.append(key)
@@ -326,7 +326,7 @@ class File:
         """Retrieve event index within current MPI rank."""
         return self._my_index[idx - self._my_start]
 
-    def read_seq(self) -> None:
+    def _read_seq(self) -> None:
         for group, _ in self._groups:
             key = f"{group}/{self._seq_name}"
             try:
@@ -337,7 +337,7 @@ class File:
                 sys.stdout.flush()
                 sys.exit(1)
 
-    def read_seq_cnt(self) -> None:
+    def _read_seq_cnt(self) -> None:
         for group, _ in self._groups:
             key = f"{group}/{self._cnt_name}"
             try:
@@ -348,8 +348,7 @@ class File:
                 sys.stdout.flush()
                 sys.exit(1)
 
-    def data_partition(self) -> None:
-        """Calculate the start and end indices for this MPI process."""
+    def _data_partition(self) -> None:
         # self._starts: a numpy array of size nprocs
         # self._counts: a numpy array of size nprocs
         # Note self._starts and self._counts are matter only in root process.
@@ -365,9 +364,9 @@ class File:
 
         if rank == 0:
             if self._use_seq_cnt:
-                self.read_seq_cnt()
+                self._read_seq_cnt()
             else:
-                self.read_seq()
+                self._read_seq()
 
             num_events = self._num_events
 
@@ -487,7 +486,7 @@ class File:
         # array
         self._my_index = np.array(self._index[self._my_start: self._my_start + self._my_count, :])
 
-    def binary_search_min(self, key, base, nmemb):
+    def _binary_search_min(self, key, base, nmemb):
         """Binary search to find minimum."""
         low = 0
         high = nmemb
@@ -499,7 +498,7 @@ class File:
                 high = mid
         return low
 
-    def binary_search_max(self, key, base, nmemb):
+    def _binary_search_max(self, key, base, nmemb):
         """Binary search to find maximum."""
         low = 0
         high = nmemb
@@ -511,7 +510,7 @@ class File:
                 high = mid
         return low - 1
 
-    def calc_bound_seq(self, group):
+    def _calc_bound_seq(self, group):
         """Return lower and upper array indices."""
         # return the lower and upper array indices of subarray assigned to this
         # process, using the partition sequence dataset
@@ -528,7 +527,7 @@ class File:
         if rank == 0:
             # root reads the entire dataset self._seq_name, if not already
             if not self._whole_seq:
-                self.read_seq()
+                self._read_seq()
 
             all_evt_seq = self._whole_seq[group]
             dim = len(all_evt_seq)
@@ -538,9 +537,9 @@ class File:
                 if self._counts[i] == 0:
                     continue
                 end = self._starts[i] + self._counts[i] - 1
-                bounds[i, 0] = self.binary_search_min(self._starts[i],
-                                                      all_evt_seq, dim)
-                bounds[i, 1] = self.binary_search_max(end, all_evt_seq, dim)
+                bounds[i, 0] = self._binary_search_min(self._starts[i],
+                                                       all_evt_seq, dim)
+                bounds[i, 1] = self._binary_search_max(end, all_evt_seq, dim)
                 displ[i] = bounds[i, 0]
                 count[i] = bounds[i, 1] - bounds[i, 0] + 1
 
@@ -563,7 +562,7 @@ class File:
 
         return lower, upper
 
-    def calc_bound_seq_cnt(self, group):
+    def _calc_bound_seq_cnt(self, group):
         # return the lower and upper array indices of subarray assigned to this
         # process, using the partition sequence-count dataset
 
@@ -579,7 +578,7 @@ class File:
         if rank == 0:
             # root reads the entire dataset self._cnt_name, if not already
             if not self._whole_seq_cnt:
-                self.read_seq_cnt()
+                self._read_seq_cnt()
 
             all_seq_cnt = self._whole_seq_cnt[group]
             dim = len(all_seq_cnt)
@@ -638,7 +637,7 @@ class File:
                 # use evt_id.seq_cnt to calculate subarray boundaries
                 # reads the entire dataset self._cnt_name, if not already
                 if not self._whole_seq_cnt or group not in self._whole_seq_cnt.keys():
-                    self.read_seq_cnt()
+                    self._read_seq_cnt()
                 all_seq_cnt = self._whole_seq_cnt[group]
                 # search indices of start and end in all_seq_cnt
                 # all_seq_cnt[:,0] are all unique
@@ -652,14 +651,14 @@ class File:
                 # use evt_id.seq to calculate subarray boundaries
                 # root reads the entire dataset self._seq_name, if not already
                 if not self._whole_seq:
-                    self.read_seq()
+                    self._read_seq()
                 all_evt_seq = self._whole_seq[group]
                 dim = len(all_evt_seq)
                 # search indices of start and end in all_seq
                 # all_seq[:] are not unique
                 end = start + count - 1
-                lower = self.binary_search_min(start, all_evt_seq, dim)
-                upper = self.binary_search_max(end,   all_evt_seq, dim)
+                lower = self._binary_search_min(start, all_evt_seq, dim)
+                upper = self._binary_search_max(end,   all_evt_seq, dim)
                 upper += 1
                 self._evt_seq[group] = np.array(all_evt_seq[lower:upper],
                                                 dtype=np.int64)
@@ -702,7 +701,7 @@ class File:
         # calculate the data partitioning start indices and amounts assigned to
         # each process. Set self._starts, self._counts, self._my_start,
         # self._my_count, and self._my_index
-        self.data_partition()
+        self._data_partition()
 
         if profile:
             time_e = MPI.Wtime()
@@ -712,10 +711,10 @@ class File:
         for group, datasets in self._groups:
             if self._use_seq_cnt:
                 # use evt_id.seq_cnt to calculate subarray boundaries
-                lower, upper = self.calc_bound_seq_cnt(group)
+                lower, upper = self._calc_bound_seq_cnt(group)
             else:
                 # use evt_id.seq to calculate subarray boundaries
-                lower, upper = self.calc_bound_seq(group)
+                lower, upper = self._calc_bound_seq(group)
 
             if profile:
                 time_e = MPI.Wtime()
@@ -804,10 +803,10 @@ class File:
             else:
                 for group in self._data.keys():
                     dim = len(self._evt_seq[group])
-                    lower = self.binary_search_min(idx, self._evt_seq[group],
-                                                   dim)
-                    upper = self.binary_search_max(idx, self._evt_seq[group],
-                                                   dim) + 1
+                    lower = self._binary_search_min(idx, self._evt_seq[group],
+                                                    dim)
+                    upper = self._binary_search_max(idx, self._evt_seq[group],
+                                                    dim) + 1
                     if lower < upper:
                         is_missing = False
                         break
@@ -854,10 +853,10 @@ class File:
 
                     # Find the local start and end row indices for this event
                     # ID, idx
-                    lower = self.binary_search_min(idx, self._evt_seq[group],
-                                                   dim)
-                    upper = self.binary_search_max(idx, self._evt_seq[group],
-                                                   dim) + 1
+                    lower = self._binary_search_min(idx, self._evt_seq[group],
+                                                    dim)
+                    upper = self._binary_search_max(idx, self._evt_seq[group],
+                                                    dim) + 1
 
                 # dfs is a python list containing Pandas DataFrame objects
                 dfs = []
