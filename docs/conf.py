@@ -20,6 +20,12 @@ extensions = [
     "sphinx_autodoc_typehints",
 ]
 
+napoleon_use_param = True
+autodoc_default_options = {
+    "members": True,
+}
+autodoc_typehints = "description"
+
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
