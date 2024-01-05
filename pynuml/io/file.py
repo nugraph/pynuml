@@ -178,39 +178,47 @@ class File:
 
     def check_shape0(self,
                      group: str,
-                     keys: List[str] = []) -> None:
-        # Check if shape[0] of all datasets in keys are of the same size
+                     keys: List[str]) -> None:
+        """Check if shape[0] of all datasets in keys are of the same size."""
         shape0 = self._fd[group][keys[0]].shape[0]
         for k in keys[1:]:
-            if k == self._cnt_name: continue # exception is seq_cnt dataset
+            if k == self._cnt_name:
+                continue  # exception is seq_cnt dataset
             if shape0 != self._fd[group][k].shape[0]:
-               raise Exception(f'Dataset "/{group}/{k}" shape[0]={self._fd[group][k].shape[0]} inconsistent with {keys[0]}.shape[0]={shape0}')
+                raise RuntimeError((
+                    f'Dataset "/{group}/{k}" shape[0]='
+                    f'{self._fd[group][k].shape[0]} inconsistent '
+                    f'with {keys[0]}.shape[0]={shape0}'))
 
     def add_group(self,
                   group: str,
-                  keys: List[str] = []) -> None:
-
+                  keys: List[str] = None) -> None:
+        """Add HDF5 group and datasets to those retrieved during processing."""
         # if no keys specified, append all columns in HDF5 group
         if not keys:
             # retrieve all the dataset names of the group
             keys = list(self._fd[group].keys())
             # datasets seq and seq_cnt are not needed
-            if group != self._par_table and self._par_name in keys: keys.remove(self._par_name)
-            if self._seq_name in keys: keys.remove(self._seq_name)
-            if self._cnt_name in keys: keys.remove(self._cnt_name)
+            if group != self._par_table and self._par_name in keys:
+                keys.remove(self._par_name)
+            if self._seq_name in keys:
+                keys.remove(self._seq_name)
+            if self._cnt_name in keys:
+                keys.remove(self._cnt_name)
         else:
             # Check if datasets in keys are available in the file
             for k in keys:
                 if k not in self._fd[group].keys():
-                   raise Exception(f'Dataset "/{group}/{k}" does not exist')
+                    raise KeyError(f'Dataset "/{group}/{k}" does not exist')
 
         # if group does not already exist, just add it
         if not self._groups or group not in self._groups[:][0]:
             self.check_shape0(group, keys)
-            self._groups.append([ group, keys ])
+            self._groups.append([group, keys])
             return
 
-        # if group is already present, need to figure out whether any extra keys need to be added
+        # if group is already present, need to figure out whether any extra
+        # keys need to be added
         for g, k in self._groups:
             if g == group:
                 self.check_shape0(group, keys)
@@ -218,37 +226,64 @@ class File:
                     if key not in k:
                         k.append(key)
                 return
-        raise Exception(f'group "{group}" not found.')
+        raise KeyError(f'group "{group}" not found.')
 
     def keys(self):
+        """Print top-level keys in the HDF5 file."""
         return self._fd.keys()
 
     def _cols(self,
               group: str,
               key: str) -> List[str]:
-        if key == self._par_name: return [ "run", "subrun", "event" ]
-        if group in self._colmap and key in self._colmap[group].keys(): return self._colmap[group][key]
-        elif self._fd[group][key].shape[1]==1: return [key]
-        else: return [ key+"_"+str(c) for c in range(0,self._fd[group][key].shape[1])]
+        if key == self._par_name:
+            return ["run", "subrun", "event"]
+        if group in self._colmap and key in self._colmap[group].keys():
+            return self._colmap[group][key]
+        if self._fd[group][key].shape[1] == 1:
+            return [key]
+        return [f"{key}_{c}" for c in range(0, self._fd[group][key].shape[1])]
 
     def get_dataframe(self,
                       group: str,
-                      keys: List[str] = []) -> pd.DataFrame:
+                      keys: List[str] = None) -> pd.DataFrame:
+        """Retrieve dataframe from file.
+
+        This function takes the name of an HDF5 group and (optionally) a list
+        of column keys, and returns a pandas DataFrame containing the requested
+        data across all events contained in the file. If no list of keys is
+        passed, the code will automatically load all keys contained in the
+        group.
+        """
         if not keys:
             keys = list(self._fd[group].keys())
-            if self._seq_name in keys: keys.remove(self._seq_name)
-            if self._cnt_name in keys: keys.remove(self._cnt_name)
-        dfs = [ pd.DataFrame(np.array(self._fd[group][key]), columns=self._cols(group, key)) for key in keys ]
-        return pd.concat(dfs, axis="columns").set_index(["run","subrun","event"])
+            if self._seq_name in keys:
+                keys.remove(self._seq_name)
+            if self._cnt_name in keys:
+                keys.remove(self._cnt_name)
+        dfs = [pd.DataFrame(np.array(self._fd[group][key]),
+               columns=self._cols(group, key)) for key in keys]
+        return pd.concat(dfs, axis="columns").set_index(["run", "subrun",
+                                                         "event"])
 
     def get_dataframe_evt(self,
                           group: str,
-                          keys: List[str] = []) -> pd.DataFrame:
+                          keys: List[str] = None) -> pd.DataFrame:
+        """Retrieve dataframe for single event.
+
+        This function takes the name of an HDF5 group and (optionally) a list
+        of column keys, and returns a pandas DataFrame containing the requested
+        data from the single event currently loaded into memory. If no list of
+        keys is passed, the code will automatically load all keys contained in
+        the group.
+        """
         if not keys:
             keys = list(self._data[group].keys())
-            if self._seq_name in keys: keys.remove(self._seq_name)
-            if self._cnt_name in keys: keys.remove(self._cnt_name)
-        dfs = [ pd.DataFrame(np.array(self._data[group][key]), columns=self._cols(group, key)) for key in keys ]
+            if self._seq_name in keys:
+                keys.remove(self._seq_name)
+            if self._cnt_name in keys:
+                keys.remove(self._cnt_name)
+        dfs = [pd.DataFrame(np.array(self._data[group][key]),
+               columns=self._cols(group, key)) for key in keys]
         df = pd.concat(dfs, axis="columns")
         evt_idx_col = []
         for seq in self._seq_cnt[group]:
@@ -257,26 +292,30 @@ class File:
         return df
 
     def index(self, idx: int):
-        """get the index for a given row"""
+        """Retrieve event index within current MPI rank."""
         return self._my_index[idx - self._my_start]
 
     def read_seq(self) -> None:
-        for group, datasets in self._groups:
+        """Read metadata sequencing information."""
+        for group, _ in self._groups:
+            key = f"{group}/{self._seq_name}"
             try:
                 # read an HDF5 dataset into a numpy array
-                self._whole_seq[group] = np.array(self._fd[group+"/"+self._seq_name])
+                self._whole_seq[group] = np.array(self._fd[key])
             except KeyError:
-                print(f"Error: dataset {group}/{self._seq_name} does not exist")
+                print(f"Error: dataset {key} does not exist")
                 sys.stdout.flush()
                 sys.exit(1)
 
     def read_seq_cnt(self) -> None:
-        for group, datasets in self._groups:
+        """Read metadata sequencing information."""
+        for group, _ in self._groups:
+            key = f"{group}/{self._cnt_name}"
             try:
                 # read an HDF5 dataset into a numpy array
-                self._whole_seq_cnt[group] = np.array(self._fd[group+"/"+self._cnt_name])
+                self._whole_seq_cnt[group] = np.array(self._fd[key])
             except KeyError:
-                print(f"Error: dataset {group}/{self._cnt_name} does not exist")
+                print(f"Error: dataset {key} does not exist")
                 sys.stdout.flush()
                 sys.exit(1)
 
