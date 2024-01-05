@@ -92,22 +92,29 @@ class File:
         """
         self._colmap = {
             "event_table": {
-                "nu_dir": [ "nu_dir_x", "nu_dir_y", "nu_dir_z" ],
-                "nu_vtx": [ "nu_vtx_x", "nu_vtx_y", "nu_vtx_z" ],
-                "nu_vtx_corr": [ "nu_vtx_corr_x", "nu_vtx_corr_y", "nu_vtx_corr_z" ],
+                "nu_dir": ["nu_dir_x", "nu_dir_y", "nu_dir_z"],
+                "nu_vtx": ["nu_vtx_x", "nu_vtx_y", "nu_vtx_z"],
+                "nu_vtx_corr": ["nu_vtx_corr_x", "nu_vtx_corr_y",
+                                "nu_vtx_corr_z"],
             },
             "particle_table": {
-                "start_position": [ "start_position_x", "start_position_y", "start_position_z" ],
-                "end_position": [ "end_position_x", "end_position_y", "end_position_z" ],
-                "start_position_corr": [ "start_position_corr_x", "start_position_corr_y", "start_position_corr_z" ],
-                "end_position_corr": [ "end_position_corr_x", "end_position_corr_y", "end_position_corr_z" ],
+                "start_position": ["start_position_x", "start_position_y",
+                                   "start_position_z"],
+                "end_position": ["end_position_x", "end_position_y",
+                                 "end_position_z"],
+                "start_position_corr": ["start_position_corr_x",
+                                        "start_position_corr_y",
+                                        "start_position_corr_z"],
+                "end_position_corr": ["end_position_corr_x",
+                                      "end_position_corr_y",
+                                      "end_position_corr_z"],
             },
             "spacepoint_table": {
-                "hit_id": [ "hit_id_u", "hit_id_v", "hit_id_y" ],
-                "position": [ "position_x", "position_y", "position_z" ],
+                "hit_id": ["hit_id_u", "hit_id_v", "hit_id_y"],
+                "position": ["position_x", "position_y", "position_z"],
             },
             "pandoraPrimary_table": {
-                "vtx": [ "vtx_x", "vtx_y", "vtx_z" ],
+                "vtx": ["vtx_x", "vtx_y", "vtx_z"],
             },
         }
 
