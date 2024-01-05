@@ -10,43 +10,63 @@ from mpi4py import MPI
 
 
 class Event:
-    """Container class for a single event and its dataframes."""
+    """Container class for a single event and its dataframes.
+
+    This class is constructed internally by the pynuml File class, and should
+    not be invoked by the user directly.
+
+    Args:
+        index: An integer representing the event's index in the file.
+        event_id: A numpy Array representing the event's unique ID -
+            this is typically in [run, subrun, event] format, but it can
+            take other forms.
+        data: A dictionary of pandas DataFrames indexed by string.
+    """
 
     def __init__(self,
                  index: int,
                  event_id: np.ndarray,
-                 data: Dict[str, pd.DataFrame]):
-        """Event class constructor.
-
-        This class is called internally by pynuml.io.File, and this class's
-        constructor is not intended to be invoked by user directly.
-        """
+                 data: Dict[str, pd.DataFrame]) -> None:
+        """Event class constructor."""
         self.index = index
         self.event_id = event_id
         self.data = data
 
     @property
     def name(self) -> str:
-        """Returns a string identifier for the event."""
+        """String identifier for the event."""
         r, sr, evt = self.event_id
         return f'r{r}_sr{sr}_evt{evt}'
 
-    def __setitem__(self, key: str, item: pd.DataFrame):
-        """Append a DataFrame to the event  key."""
+    def __setitem__(self, key: str, item: pd.DataFrame) -> None:
+        """Append a DataFrame to the event key.
+
+        Args:
+            key: string identifier for DataFrame.
+            item: pandas DataFrame to append to event.
+        """
         if key is not str:
             raise TypeError('Key must be a string!')
         if item is not pd.DataFrame:
             raise TypeError('Value must be a pandas DataFrame!')
         self.data[key] = item
 
-    def __getitem__(self, key: str):
-        """Retrieve the DataFrame given a key string."""
+    def __getitem__(self, key: str) -> pd.DataFrame:
+        """Retrieve DataFrame for a given key string.
+
+        Args:
+            key: string identifier for DataFrame
+        """
         if key is not str:
             raise TypeError('Key must be a string!')
         return self.data[key]
 
     def __str__(self) -> str:
-        """Print summary information on event and its data types."""
+        """Print summary information on event and its data types.
+
+        Returns:
+            A summary of the events and its contents.
+        """
         ret = f'event {self.event_id}\n'
         for group, df in self.data.items():
             ret += f'  {group} ({df.shape[0]} rows):\n'
