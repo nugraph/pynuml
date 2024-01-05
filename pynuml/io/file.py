@@ -189,9 +189,9 @@ class File:
     def __str__(self):
         """Print enabled HDF5 groups and datasets."""
         ret = ""
-        for k1 in self._fd.keys():
+        for k1, d1 in self._fd.items():
             ret += f"{k1}:\n"
-            for k2 in self._fd[k1].keys():
+            for k2 in d1.keys():
                 if self._seq_name in k2:
                     continue
                 ret += f"    {k2}\n"
@@ -636,7 +636,7 @@ class File:
             if self._use_seq_cnt:
                 # use evt_id.seq_cnt to calculate subarray boundaries
                 # reads the entire dataset self._cnt_name, if not already
-                if not self._whole_seq_cnt or group not in self._whole_seq_cnt.keys():
+                if not self._whole_seq_cnt or group not in self._whole_seq_cnt:
                     self._read_seq_cnt()
                 all_seq_cnt = self._whole_seq_cnt[group]
                 # search indices of start and end in all_seq_cnt
@@ -794,14 +794,14 @@ class File:
             # check if idx is missing in all groups
             is_missing = True
             if self._use_seq_cnt:
-                for group in self._data.keys():
+                for group in self._data:
                     if idx_grp[group] >= len(self._seq_cnt[group][:, 0]):
                         continue
                     if idx == self._seq_cnt[group][idx_grp[group], 0]:
                         is_missing = False
                         break
             else:
-                for group in self._data.keys():
+                for group in self._data:
                     dim = len(self._evt_seq[group])
                     lower = self._binary_search_min(idx, self._evt_seq[group],
                                                     dim)
@@ -821,46 +821,46 @@ class File:
             #   remaining items: key is group name and value is a Pandas
             # DataFrame containing the dataset subarray in this group with the
             # event ID, idx
-            ret = Event(idx, self.index(idx))
+            ret = Event(idx, self.index(idx), {})
 
             # Iterate through all groups
-            for group in self._data.keys():
+            for k, group in self._data.items():
 
                 if self._use_seq_cnt:
-                    # self._seq_cnt[group][:, 0] is the event ID
-                    # self._seq_cnt[group][:, 1] is the number of elements
+                    # self._seq_cnt[k][:, 0] is the event ID
+                    # self._seq_cnt[k][:, 1] is the number of elements
 
-                    if idx_grp[group] >= len(self._seq_cnt[group][:, 0]) or idx < self._seq_cnt[group][idx_grp[group], 0]:
+                    if idx_grp[k] >= len(self._seq_cnt[k][:, 0]) or idx < self._seq_cnt[k][idx_grp[k], 0]:
                         # idx is missing from this group but may not in other groups
                         # create an empty Pandas DataFrame
                         dfs = []
-                        for dataset in self._data[group].keys():
-                            data_dataframe = pd.DataFrame(columns=self._cols(group, dataset))
+                        for dataset in group.keys():
+                            data_dataframe = pd.DataFrame(columns=self._cols(k, dataset))
                             dfs.append(data_dataframe)
-                        ret[group] = pd.concat(dfs, axis="columns")
+                        ret[k] = pd.concat(dfs, axis="columns")
                         continue
 
-                    lower = idx_start[group]
-                    upper = self._seq_cnt[group][idx_grp[group], 1] + lower
+                    lower = idx_start[k]
+                    upper = self._seq_cnt[k][idx_grp[k], 1] + lower
 
-                    idx_start[group] += self._seq_cnt[group][idx_grp[group], 1]
-                    idx_grp[group] += 1
+                    idx_start[k] += self._seq_cnt[k][idx_grp[k], 1]
+                    idx_grp[k] += 1
 
                 else:
                     # Note self._evt_seq stores event ID values and is already
                     # sorted in an increasing order
-                    dim = len(self._evt_seq[group])
+                    dim = len(self._evt_seq[k])
 
                     # Find the local start and end row indices for this event
                     # ID, idx
-                    lower = self._binary_search_min(idx, self._evt_seq[group],
+                    lower = self._binary_search_min(idx, self._evt_seq[k],
                                                     dim)
-                    upper = self._binary_search_max(idx, self._evt_seq[group],
+                    upper = self._binary_search_max(idx, self._evt_seq[k],
                                                     dim) + 1
 
                 # dfs is a python list containing Pandas DataFrame objects
                 dfs = []
-                for dataset in self._data[group].keys():
+                for dataset in self._data[k].keys():
                     if lower >= upper:
                         # idx is missing from the dataset self._seq_name,
                         # In this case, create an empty numpy array
@@ -868,17 +868,17 @@ class File:
                     else:
                         # array elements from lower to upper of this dataset
                         # have the event ID == idx
-                        data = self._data[group][dataset][lower:upper]
+                        data = self._data[k][dataset][lower:upper]
 
                     # create a Pandas DataFrame to store the numpy array
-                    df = pd.DataFrame(data, columns=self._cols(group, dataset))
+                    df = pd.DataFrame(data, columns=self._cols(k, dataset))
                     for col in df.columns:
                         if df[col].dtype in ('|S64', 'object'):
                             df[col] = df[col].str.decode('utf-8')
                     dfs.append(df)
 
                 # concate into the dictionary "ret" with group names as keys
-                ret[group] = pd.concat(dfs, axis="columns")
+                ret[k] = pd.concat(dfs, axis="columns")
 
             # Add all dictionaries "ret" into a list.
             # Each of them corresponds to the data of one single event ID
