@@ -1,7 +1,7 @@
 """HDF5 file interface."""
 import sys
 import os.path
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable
 
 import h5py
 import numpy as np
@@ -26,7 +26,7 @@ class Event:
     def __init__(self,
                  index: int,
                  event_id: np.ndarray,
-                 data: Dict[str, pd.DataFrame]) -> None:
+                 data: dict[str, pd.DataFrame]) -> None:
         """Event class constructor."""
         self.index = index
         self.event_id = event_id
@@ -205,7 +205,7 @@ class File:
 
     def _check_shape0(self,
                       group: str,
-                      keys: List[str]) -> None:
+                      keys: list[str]) -> None:
         shape0 = self._fd[group][keys[0]].shape[0]
         for k in keys[1:]:
             if k == self._cnt_name:
@@ -218,13 +218,13 @@ class File:
 
     def add_group(self,
                   group: str,
-                  keys: List[str] = None) -> None:
+                  keys: list[str] = None) -> None:
         """Add HDF5 group and datasets to those retrieved during processing.
 
         Args:
             group: Name of HDF5 group.
-            keys: Optional list of dataset names within group. If not passed,
-                  all keys in group will be added.
+            keys: List of dataset names within group. If not passed, all keys
+                  in group will be added.
         """
         # if no keys specified, append all columns in HDF5 group
         if not keys:
@@ -264,9 +264,7 @@ class File:
         """Print top-level keys in the HDF5 file."""
         return self._fd.keys()
 
-    def _cols(self,
-              group: str,
-              key: str) -> List[str]:
+    def _cols(self, group: str, key: str) -> list[str]:
         if key == self._par_name:
             return ["run", "subrun", "event"]
         if group in self._colmap and key in self._colmap[group].keys():
@@ -275,10 +273,11 @@ class File:
             return [key]
         return [f"{key}_{c}" for c in range(0, self._fd[group][key].shape[1])]
 
-    def get_dataframe(self,
-                      group: str,
-                      keys: List[str] = None) -> pd.DataFrame:
+    def get_dataframe(self, group: str, keys: list[str] = None) -> pd.DataFrame:
         """Read HDF5 group into pandas DataFrame.
+
+        This function returns a DataFrame containing the requested HDF5 group
+        across all events in the file.
 
         Args:
             group: Name of HDF5 group.
@@ -298,14 +297,16 @@ class File:
 
     def get_dataframe_evt(self,
                           group: str,
-                          keys: List[str] = None) -> pd.DataFrame:
-        """Retrieve dataframe for single event.
+                          keys: list[str] = None) -> pd.DataFrame:
+        """Read HDF5 group for specific event into pandas DataFrame.
 
-        This function takes the name of an HDF5 group and (optionally) a list
-        of column keys, and returns a pandas DataFrame containing the requested
-        data from the single event currently loaded into memory. If no list of
-        keys is passed, the code will automatically load all keys contained in
-        the group.
+        This function returns a DataFrame containing the requested HDF5 group
+        across the single event currently cached.
+
+        Args:
+            group: Name of HDF5 group.
+            keys: List of dataset names within group. If not passed, all keys
+                  in group will be loaded.
         """
         if not keys:
             keys = list(self._data[group].keys())
@@ -323,7 +324,11 @@ class File:
         return df
 
     def index(self, idx: int):
-        """Retrieve event index within current MPI rank."""
+        """Retrieve event index within current MPI rank.
+
+        Args:
+            idx: integer index of event in file.
+        """
         return self._my_index[idx - self._my_start]
 
     def _read_seq(self) -> None:
@@ -628,10 +633,15 @@ class File:
     def read_data(self,
                   start: int,
                   count: int) -> None:
-        # (sequentially) read subarrays of all datasets in all groups that fall
-        # in the range of self._seq_name, starting from 'start' and amount of
-        # 'count'
+        """Read HDF5 file data for the requested index range.
 
+        This function reads the data for the reqested index range from the HDF5
+        file and caches it internally for downstream iteration.
+
+        Args:
+            start: Index of first event to read.
+            count: Number of events to read.
+        """
         for group, datasets in self._groups:
             if self._use_seq_cnt:
                 # use evt_id.seq_cnt to calculate subarray boundaries
@@ -681,14 +691,25 @@ class File:
                       use_seq_cnt: bool = True,
                       evt_part: int = 2,
                       profile: bool = False) -> None:
-        # use_seq_cnt: True  - use event.seq_cnt dataset to calculate partitioning
-        #                      starts and counts
-        #              False - use event.seq dataset to calculate starts and counts
-        # evt_part: 0  - partition based on event IDs
-        #           1 - partition based on event amount
-        #           2 - partition based on event amount of particle table (default)
-        # Parallel read dataset subarrays assigned to this process ranging from
-        # array index of self._my_start to (self._my_start + self._my_count - 1)
+        """Read all HDF5 data for current MPI rank.
+
+        This function reads the data for all events in the current MPI rank and
+        caches it internally for downstream iteration.
+
+        Note:
+            Calling this function outside of an MPI context is not
+            recommended, as it will load all data for the entire file, which
+            may lead to prohibitively long runtimes.
+        Args:
+            use_seq_cnt: Specify which event sequencing scheme to use.
+                         True: row-count scheme
+                         False: row-wise scheme
+            evt_part: Specify how to partition events between MPI processes.
+                      0: partition based on event IDs
+                      1: partition based on number of hits
+                      2: partition based on number of particles
+            profile: Whether to enable time benchmarking
+        """
         if profile:
             par_time = 0
             bnd_time = 0
@@ -762,14 +783,19 @@ class File:
                 print("MAX=%8.2f  MIN=%8.2f" % (max_total_t[2], min_total_t[2]))
                 print("(MAX and MIN timings are among %d processes)" % nprocs)
 
-    def build_evt(self,
-                  start: int = None,
-                  count: int = None) -> List[Dict]:
-        # This process is responsible for event IDs from start to (start+count-1).
-        # All data of the same event ID will be used to create a graph.
-        # This function collects all data based on self._seq_name, or
-        # self._cnt_name into a python list containing Pandas DataFrames, one
-        # for a unique event ID.
+    def build_evt(self, start: int = None, count: int = None) -> list[Event]:
+        """Construct an event list for cached data.
+
+        This function takes cached HDF5 datasets and builds them into a list
+        of Event objects for the requested range of events. If no arguments are
+        passed, it will construct an Event object for every cached event.
+
+        Args:
+            start: Index of first event in cached data to prepare.
+            count: Number of cached data events to process.
+        Returns:
+            A list of events.
+        """
         if not self._groups:
             raise RuntimeError(('cannot build event without adding any HDF5 '
                                 'groups'))
@@ -888,9 +914,29 @@ class File:
         return ret_list
 
     def process(self,
-                processor: Callable[[Event], Tuple[str, Any]],
+                processor: Callable[[Event], tuple[str, Any]],
                 out: Callable[[Any, str], None]) -> None:
-        '''Process all events in this data partition'''
+        """Process all events in the current data partition.
+
+        This function is the core engine for event processing. The user must
+        provide a callable event processor that generates processed objects
+        from raw events, and a callable output stream that writes the processed
+        object.
+
+        Args:
+            processor: A callable object for event processing.
+            out: A callable object for output writing.
+
+        Example:
+            >>> f = pynuml.io.File("test.h5")
+            ... processor = pynuml.process.HitGraphProducer(
+            ...    file = f,
+            ...    semantic_labeller=pynuml.labels.StandardLabels(),
+            ...    event_labeller=pynuml.labels.FlavorLabels(),
+            ... )
+            ... out = pynuml.io.H5Out("out")
+            ... f.process(processor, out)
+        """
         comm = MPI.COMM_WORLD
         rank = comm.Get_rank()
         if rank == 0:
