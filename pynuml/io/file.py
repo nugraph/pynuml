@@ -320,7 +320,7 @@ class File:
                 sys.exit(1)
 
     def data_partition(self) -> None:
-        # Calculate the start indices and counts of evt.seq assigned to each process
+        """Calculate the start and end indices for this MPI process."""
         # self._starts: a numpy array of size nprocs
         # self._counts: a numpy array of size nprocs
         # Note self._starts and self._counts are matter only in root process.
@@ -356,10 +356,10 @@ class File:
 
             elif self._evt_part == 1:
                 # event amount based partitioning, which calculates event sizes
-                # across all groups. Note it is possible multiple consecutive rows
-                # a dataset have the same event ID. It is also possible some event
-                # IDs contain no data. First, we accumulate numbers of events
-                # across all groups
+                # across all groups. Note it is possible multiple consecutive
+                # rows a dataset have the same event ID. It is also possible
+                # some event IDs contain no data. First, we accumulate numbers
+                # of events across all groups
                 evt_size = np.zeros(num_events, dtype=int)
                 if self._use_seq_cnt:
                     for group, datasets in self._groups:
@@ -373,7 +373,8 @@ class File:
                         for i in range(seq.shape[0]):
                             evt_size[seq[i, 0]] += 1
 
-                # now we have collected the number of events per event ID across all groups
+                # now we have collected the number of events per event ID
+                # across all groups
                 total_evt_num = np.sum(evt_size)
                 avg_evt_num = total_evt_num // nprocs
                 avg_evt = total_evt_num // num_events / 2
@@ -382,7 +383,8 @@ class File:
                 acc_evt_num = 0
                 rank_id = 0
                 for j in range(num_events):
-                    if rank_id == nprocs - 1: break
+                    if rank_id == nprocs - 1:
+                        break
                     if acc_evt_num + evt_size[j] >= avg_evt_num:
                         remain_l = avg_evt_num - acc_evt_num
                         remain_r = evt_size[j] - remain_l
@@ -403,20 +405,22 @@ class File:
                 self._counts[nprocs-1] += num_events - j
 
             elif self._evt_part == 2:
-                # use event amounts in the particle_table only to partition events
+                # use event amounts in the particle_table only to partition
+                # events
                 seq_cnt = self._whole_seq_cnt['particle_table']
-                total_evt_num = np.sum(seq_cnt[:,1])
+                total_evt_num = np.sum(seq_cnt[:, 1])
                 avg_evt_num = total_evt_num // nprocs
                 avg_evt = total_evt_num // seq_cnt.shape[0] / 2
 
-                self._starts[0] = seq_cnt[0,0]
+                self._starts[0] = seq_cnt[0, 0]
                 acc_evt_num = 0
                 rank_id = 0
                 for j in range(seq_cnt.shape[0]):
-                    if rank_id == nprocs - 1: break
-                    if acc_evt_num + seq_cnt[j,1] >= avg_evt_num:
+                    if rank_id == nprocs - 1:
+                        break
+                    if acc_evt_num + seq_cnt[j, 1] >= avg_evt_num:
                         remain_l = avg_evt_num - acc_evt_num
-                        remain_r = seq_cnt[j,1] - remain_l
+                        remain_r = seq_cnt[j, 1] - remain_l
                         # if remain_r > remain_l:
                         if remain_l > remain_r and remain_l > avg_evt:
                             # assign event j to rank_id
@@ -436,8 +440,8 @@ class File:
                 self._counts[nprocs-1] = num_events - self._starts[nprocs-1]
 
         # All processes participate the collective communication, scatter.
-        # Root distributes start and count to all processes. Note only root process
-        # uses self._starts and self._counts.
+        # Root distributes start and count to all processes. Note only root
+        # process uses self._starts and self._counts.
         start_count = np.empty([nprocs, 2], dtype=int)
         start_count[:, 0] = self._starts[:]
         start_count[:, 1] = self._counts[:]
@@ -455,28 +459,31 @@ class File:
         self._my_index = np.array(self._index[self._my_start : self._my_start + self._my_count, :])
 
     def binary_search_min(self, key, base, nmemb):
+        """Binary search to find minimum."""
         low = 0
         high = nmemb
         while low != high:
-                mid = (low + high) // 2
-                if base[mid] < key:
-                        low = mid + 1
-                else:
-                        high = mid
+            mid = (low + high) // 2
+            if base[mid] < key:
+                low = mid + 1
+            else:
+                high = mid
         return low
 
     def binary_search_max(self, key, base, nmemb):
+        """Binary search to find maximum."""
         low = 0
         high = nmemb
         while low != high:
-                mid = (low + high) // 2
-                if base[mid] <= key:
-                        low = mid + 1
-                else:
-                        high = mid
-        return (low - 1)
+            mid = (low + high) // 2
+            if base[mid] <= key:
+                low = mid + 1
+            else:
+                high = mid
+        return low - 1
 
     def calc_bound_seq(self, group):
+        """Return lower and upper array indices."""
         # return the lower and upper array indices of subarray assigned to this
         # process, using the partition sequence dataset
 
