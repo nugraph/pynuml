@@ -651,8 +651,8 @@ class File:
                 all_seq_cnt = self._whole_seq_cnt[group]
                 # search indices of start and end in all_seq_cnt
                 # all_seq_cnt[:,0] are all unique
-                ilower = np.searchsorted(all_seq_cnt[:,0], start)
-                iupper = np.searchsorted(all_seq_cnt[:,0], start+count)
+                ilower = np.searchsorted(all_seq_cnt[:, 0], start)
+                iupper = np.searchsorted(all_seq_cnt[:, 0], start+count)
                 self._seq_cnt[group] = np.array(all_seq_cnt[ilower:iupper],
                                                 dtype=np.int64)
                 lower = np.sum(all_seq_cnt[0:ilower, 1])
@@ -910,7 +910,6 @@ class File:
             # Each of them corresponds to the data of one single event ID
             ret_list.append(ret)
 
-        # print("start=",start," count=",count," num miss IDs=",num_miss)
         return ret_list
 
     def process(self,
