@@ -183,6 +183,14 @@ class HitGraphProducer(ProcessorBase):
         if self.event_labeller:
             data['evt'].y = torch.tensor(self.event_labeller(event)).long()
 
+        # save particle tree
+        data['particles'].id = torch.tensor(particles.g4_id).int()
+        data['particles'].parent = torch.tensor(particles.parent_id).int()
+        data['particles'].type = torch.tensor(particles.type).int()
+        data['particles'].momentum = torch.tensor(particles.momentum).float()
+        data['particles'].semantic_label = torch.tensor(particles.semantic_label).int()
+        data['particles'].instance_label = torch.tensor(particles.instance_label).int()
+
         # 3D vertex truth
         if self.label_vertex:
             vtx_3d = [ [ event.nu_vtx_corr_x, event.nu_vtx_corr_y, event.nu_vtx_corr_z ] ]
