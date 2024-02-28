@@ -198,7 +198,7 @@ class GraphPlot:
         # set the legend to horizontal
         fig.update_layout(
             legend_orientation='h',
-            legend_yanchor='bottom', legend_y=1.1,
+            legend_yanchor='bottom', legend_y=1.05,
             legend_xanchor='right', legend_x=1,
             title_automargin=title,
         )
