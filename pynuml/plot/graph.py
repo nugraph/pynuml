@@ -200,6 +200,7 @@ class GraphPlot:
             legend_orientation='h',
             legend_yanchor='bottom', legend_y=1.05,
             legend_xanchor='right', legend_x=1,
+            margin_l=20, margin_r=20, margin_t=20, margin_b=20,
             title_automargin=title,
         )
 
