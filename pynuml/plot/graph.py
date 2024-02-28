@@ -64,7 +64,8 @@ class GraphPlot:
              how: str = 'none',
              filter: str = 'show',
              width: int = None,
-             height: int = None) -> FigureWidget:
+             height: int = None,
+             title: bool = True) -> FigureWidget:
 
         df = self.to_dataframe(data)
 
@@ -161,6 +162,9 @@ class GraphPlot:
         else:
             raise Exception('"filter" must be one of "none", "show", "true" or "pred".')
 
+        if not title:
+            opts.pop('title')
+
         # set hover data
         opts['hover_data'] = {
             'y_semantic': True,
@@ -196,6 +200,7 @@ class GraphPlot:
             legend_orientation='h',
             legend_yanchor='bottom', legend_y=1.1,
             legend_xanchor='right', legend_x=1,
+            title_automargin=title,
         )
 
         return FigureWidget(fig)
