@@ -190,4 +190,12 @@ class GraphPlot:
         fig.update_xaxes(matches=None)
         for a in fig.layout.annotations:
             a.text = a.text.replace('plane=', '')
+
+        # set the legend to horizontal
+        fig.update_layout(
+            legend_orientation='h',
+            legend_yanchor='bottom', legend_y=1.1,
+            legend_xanchor='right', legend_x=1,
+        )
+
         return FigureWidget(fig)
