@@ -2,6 +2,7 @@ import pandas as pd
 from torch_geometric.data import Batch, HeteroData
 import plotly.express as px
 from plotly.graph_objects import FigureWidget
+from plotly.subplots import make_subplots
 import warnings
 
 class GraphPlot:
@@ -33,6 +34,7 @@ class GraphPlot:
             df = pd.DataFrame(plane['id'], columns=['id'])
             df['plane'] = p
             df[['wire','time']] = plane['pos']
+            df[["x", "y", "z"]] = plane["c"]
             df['y_filter'] = plane['y_semantic'] != -1
             mask = df.y_filter.values
             df['y_semantic'] = to_categorical(plane['y_semantic'])
@@ -63,11 +65,14 @@ class GraphPlot:
              target: str = 'hits',
              how: str = 'none',
              filter: str = 'show',
+             xyz: bool = False,
              width: int = None,
              height: int = None,
              title: bool = True) -> FigureWidget:
 
         df = self.to_dataframe(data)
+        if "x" in df.keys():
+            fig = make_subplots(rows=2, cols=1)
 
         # no colour
         if target == 'hits':
@@ -189,11 +194,15 @@ class GraphPlot:
             if col in df:
                 opts['hover_data'][col] = True
 
-        fig = px.scatter(df, x='wire', y='time', facet_col='plane',
-                         width=width, height=height, **opts)
-        fig.update_xaxes(matches=None)
-        for a in fig.layout.annotations:
-            a.text = a.text.replace('plane=', '')
+        if xyz:
+            fig = px.scatter_3d(df, x="x", y="y", z="z",
+                                width=width, height=height, **opts)
+        else:
+            fig = px.scatter(df, x='wire', y='time', facet_col='plane',
+                            width=width, height=height, **opts)
+            fig.update_xaxes(matches=None)
+            for a in fig.layout.annotations:
+                a.text = a.text.replace('plane=', '')
 
         # set the legend to horizontal
         fig.update_layout(
