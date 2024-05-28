@@ -82,10 +82,24 @@ class HitGraphProducer(ProcessorBase):
         if self.semantic_labeller:
             edeps = evt['edep_table']
             energy_col = 'energy' if 'energy' in edeps.columns else 'energy_fraction' # for backwards compatibility
-            edeps = edeps.sort_values(by=[energy_col],
+        
+            # get ID of max particle
+            g4_id = edeps.drop(["x_position", "y_position", "z_position"], axis="columns")
+            g4_id = g4_id.sort_values(by=[energy_col],
                                       ascending=False,
                                       kind='mergesort').drop_duplicates('hit_id')
-            hits = edeps.merge(hits, on='hit_id', how='right')
+            hits = g4_id.drop(energy_col, axis="columns").merge(hits, on='hit_id', how='right')
+            
+            # charge-weighted average of 3D position
+            edeps = edeps.drop("g4_id", axis="columns")
+            edeps["x_position"] = edeps.x_position * edeps.energy
+            edeps["y_position"] = edeps.y_position * edeps.energy
+            edeps["z_position"] = edeps.z_position * edeps.energy
+            edeps = edeps.groupby("hit_id").sum()
+            edeps["x_position"] = edeps.x_position / edeps.energy
+            edeps["y_position"] = edeps.y_position / edeps.energy
+            edeps["z_position"] = edeps.z_position / edeps.energy
+            hits = edeps.merge(hits, on="hit_id", how="right")
 
             hits['filter_label'] = ~hits[energy_col].isnull()
             hits = hits.drop(energy_col, axis='columns')
@@ -141,6 +155,9 @@ class HitGraphProducer(ProcessorBase):
 
             # node features
             data[p].x = torch.tensor(plane_hits[self.node_feats].values).float()
+
+            # node true position
+            data[p].c = torch.tensor(plane_hits[["x_position", "y_position", "z_position"]].values).float()
 
             # hit indices
             data[p].id = torch.tensor(plane_hits['hit_id'].values).long()
