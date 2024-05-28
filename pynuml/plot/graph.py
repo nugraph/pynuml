@@ -197,6 +197,7 @@ class GraphPlot:
         if xyz:
             fig = px.scatter_3d(df, x="x", y="y", z="z",
                                 width=width, height=height, **opts)
+            fig.update_traces(marker_size=1)
         else:
             fig = px.scatter(df, x='wire', y='time', facet_col='plane',
                             width=width, height=height, **opts)
