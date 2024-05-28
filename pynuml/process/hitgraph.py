@@ -19,8 +19,7 @@ class HitGraphProducer(ProcessorBase):
                  node_pos: list[str] = ['local_wire','local_time'],
                  pos_norm: list[float] = [0.3,0.055],
                  node_feats: list[str] = ['integral','rms'],
-                 lower_bound: int = 20,
-                 filter_hits: bool = False):
+                 lower_bound: int = 20):
 
         self.semantic_labeller = semantic_labeller
         self.event_labeller = event_labeller
@@ -30,7 +29,6 @@ class HitGraphProducer(ProcessorBase):
         self.pos_norm = torch.tensor(pos_norm).float()
         self.node_feats = node_feats
         self.lower_bound = lower_bound
-        self.filter_hits = filter_hits
 
         self.transform = pyg.transforms.Compose((
             pyg.transforms.Delaunay(),
@@ -84,23 +82,13 @@ class HitGraphProducer(ProcessorBase):
             return evt.name, None
 
         # handle energy depositions
-        if self.filter_hits or self.semantic_labeller:
+        if self.semantic_labeller:
             edeps = evt['edep_table']
             energy_col = 'energy' if 'energy' in edeps.columns else 'energy_fraction' # for backwards compatibility
             edeps = edeps.sort_values(by=[energy_col],
                                       ascending=False,
                                       kind='mergesort').drop_duplicates('hit_id')
             hits = edeps.merge(hits, on='hit_id', how='right')
-
-            # if we're filtering out data hits, do that
-            if self.filter_hits:
-                hitmask = hits[energy_col].isnull()
-                filtered_hits = hits[hitmask].hit_id.tolist()
-                hits = hits[~hitmask].reset_index(drop=True)
-                # filter spacepoints from noise
-                cols = [ f'hit_id_{p}' for p in self.planes ]
-                spmask = spacepoints[cols].isin(filtered_hits).any(axis='columns')
-                spacepoints = spacepoints[~spmask].reset_index(drop=True)
 
             hits['filter_label'] = ~hits[energy_col].isnull()
             hits = hits.drop(energy_col, axis='columns')
