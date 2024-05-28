@@ -66,9 +66,6 @@ class HitGraphProducer(ProcessorBase):
 
     def __call__(self, evt: 'pynuml.io.Event') -> tuple[str, Any]:
 
-        event_id = evt.event_id
-        name = f'r{event_id[0]}_sr{event_id[1]}_evt{event_id[2]}'
-
         if self.event_labeller or self.label_vertex:
             event = evt['event_table'].squeeze()
 
