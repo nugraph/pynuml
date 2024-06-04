@@ -33,7 +33,8 @@ class GraphPlot:
             df = pd.DataFrame(plane['id'], columns=['id'])
             df['plane'] = p
             df[['wire','time']] = plane['pos']
-            df[["x", "y", "z"]] = plane["c"]
+            if "c" in plane:
+                df[["x", "y", "z"]] = plane["c"]
             df['y_filter'] = plane['y_semantic'] != -1
             mask = df.y_filter.values
             df['y_semantic'] = to_categorical(plane['y_semantic'])

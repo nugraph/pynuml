@@ -1,4 +1,4 @@
-"""Test pynuml graph processing"""
+"""Test pynuml graph processing and plotting"""
 import pynuml
 
 def test_process_uboone():
@@ -9,7 +9,14 @@ def test_process_uboone():
         semantic_labeller=pynuml.labels.StandardLabels(),
         event_labeller=pynuml.labels.FlavorLabels(),
         label_vertex=True)
+    plot = pynuml.plot.GraphPlot(
+        planes=["u", "v", "y"],
+        classes=pynuml.labels.StandardLabels().labels[:-1])
     f.read_data(0, 100)
     evts = f.build_evt()
     for evt in evts:
-        processor(evt)
+        _, data = processor(evt)
+        if not data:
+            continue
+        plot.plot(data, target='semantic', how='true', filter='show')
+        plot.plot(data, target='instance', how='true', filter='true')
