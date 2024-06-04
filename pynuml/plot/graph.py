@@ -2,7 +2,6 @@ import pandas as pd
 from torch_geometric.data import Batch, HeteroData
 import plotly.express as px
 from plotly.graph_objects import FigureWidget
-from plotly.subplots import make_subplots
 import warnings
 
 class GraphPlot:
@@ -71,8 +70,6 @@ class GraphPlot:
              title: bool = True) -> FigureWidget:
 
         df = self.to_dataframe(data)
-        if "x" in df.keys():
-            fig = make_subplots(rows=2, cols=1)
 
         # no colour
         if target == 'hits':
