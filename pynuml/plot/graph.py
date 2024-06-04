@@ -20,6 +20,7 @@ class GraphPlot:
         # which we don't have any power to fix but will presumably
         # be fixed on their end at some point
         warnings.filterwarnings("ignore", ".*The default of observed=False is deprecated and will be changed to True in a future version of pandas.*")
+        self._truth_cols = ( 'g4_id', 'parent_id', 'pdg' )
 
     def to_dataframe(self, data: HeteroData):
         def to_categorical(arr):
@@ -32,15 +33,24 @@ class GraphPlot:
             df = pd.DataFrame(plane['id'], columns=['id'])
             df['plane'] = p
             df[['wire','time']] = plane['pos']
+            df[["x", "y", "z"]] = plane["c"]
             df['y_filter'] = plane['y_semantic'] != -1
             mask = df.y_filter.values
             df['y_semantic'] = to_categorical(plane['y_semantic'])
-            df['y_instance'] = plane['y_instance'].numpy()
+            df['y_instance'] = plane['y_instance'].numpy().astype(str)
+
+            # add detailed truth information if it's available
+            for col in self._truth_cols:
+                if col in plane.keys():
+                    df[col] = plane[col].numpy()
+
+            # add model prediction if it's available
             if 'x_semantic' in plane.keys():
                 df['x_semantic'] = to_categorical(plane['x_semantic'].argmax(dim=-1).detach())
                 df[self._classes] = plane['x_semantic'].detach()
             if 'x_filter' in plane.keys():
                 df['x_filter'] = plane['x_filter'].detach()
+
             dfs.append(df)
         df = pd.concat(dfs)
         md = data['metadata']
@@ -54,8 +64,10 @@ class GraphPlot:
              target: str = 'hits',
              how: str = 'none',
              filter: str = 'show',
+             xyz: bool = False,
              width: int = None,
-             height: int = None) -> FigureWidget:
+             height: int = None,
+             title: bool = True) -> FigureWidget:
 
         df = self.to_dataframe(data)
 
@@ -98,12 +110,16 @@ class GraphPlot:
                     'title': 'True instance labels',
                     'labels': { 'y_instance': 'Instance label' },
                     'color': 'y_instance',
+                    'symbol': 'y_semantic',
+                    'color_discrete_map': self._cmap,
                 }
             elif how == 'pred':
                 opts = {
                     'title': 'Predicted instance labels',
                     'labels': { 'x_instance': 'Instance label' },
                     'color': 'x_instance',
+                    'symbol': 'x_semantic',
+                    'color_discrete_map': self._cmap,
                 }
             else:
                 raise Exception('for instance labels, "how" must be one of "true" or "pred".')
@@ -148,9 +164,51 @@ class GraphPlot:
         else:
             raise Exception('"filter" must be one of "none", "show", "true" or "pred".')
 
-        fig = px.scatter(df, x='wire', y='time', facet_col='plane',
-                         width=width, height=height, **opts)
-        fig.update_xaxes(matches=None)
-        for a in fig.layout.annotations:
-            a.text = a.text.replace('plane=', '')
+        if not title:
+            opts.pop('title')
+
+        # set hover data
+        opts['hover_data'] = {
+            'y_semantic': True,
+            'wire': ':.1f',
+            'time': ':.1f',
+        }
+        opts['labels'] = {
+            'y_filter': 'filter truth',
+            'y_semantic': 'semantic truth',
+            'y_instance': 'instance truth',
+        }
+        if 'x_filter' in df:
+            opts['hover_data']['x_filter'] = True
+            opts['labels']['x_filter'] = 'filter prediction'
+        if 'x_semantic' in df:
+            opts['hover_data']['x_semantic'] = True
+            opts['labels']['x_semantic'] = 'semantic prediction'
+        if 'x_instance' in df:
+            opts['hover_data']['x_instance'] = ':.4f'
+            opts['labels']['x_instance'] = 'instance prediction'
+        for col in self._truth_cols:
+            if col in df:
+                opts['hover_data'][col] = True
+
+        if xyz:
+            fig = px.scatter_3d(df, x="x", y="y", z="z",
+                                width=width, height=height, **opts)
+            fig.update_traces(marker_size=1)
+        else:
+            fig = px.scatter(df, x='wire', y='time', facet_col='plane',
+                            width=width, height=height, **opts)
+            fig.update_xaxes(matches=None)
+            for a in fig.layout.annotations:
+                a.text = a.text.replace('plane=', '')
+
+        # set the legend to horizontal
+        fig.update_layout(
+            legend_orientation='h',
+            legend_yanchor='bottom', legend_y=1.05,
+            legend_xanchor='right', legend_x=1,
+            margin_l=20, margin_r=20, margin_t=20, margin_b=20,
+            title_automargin=title,
+        )
+
         return FigureWidget(fig)
