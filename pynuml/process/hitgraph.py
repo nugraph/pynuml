@@ -58,7 +58,7 @@ class HitGraphProducer(ProcessorBase):
             else:
                 groups['event_table'] = keys
         if self.label_position:
-            groups["hit_table"].extend(["x_position", "y_position", "z_position"])
+            groups["edep_table"] = []
         return groups
 
     @property
@@ -98,7 +98,7 @@ class HitGraphProducer(ProcessorBase):
             
             # charge-weighted average of 3D position
             if self.label_position:
-                edeps = edeps.drop("g4_id", axis="columns")
+                edeps = edeps[["hit_id", "energy", "x_position", "y_position", "z_position"]]
                 edeps["x_position"] = edeps.x_position * edeps.energy
                 edeps["y_position"] = edeps.y_position * edeps.energy
                 edeps["z_position"] = edeps.z_position * edeps.energy
@@ -106,6 +106,7 @@ class HitGraphProducer(ProcessorBase):
                 edeps["x_position"] = edeps.x_position / edeps.energy
                 edeps["y_position"] = edeps.y_position / edeps.energy
                 edeps["z_position"] = edeps.z_position / edeps.energy
+                edeps = edeps.drop("energy", axis="columns")
                 hits = edeps.merge(hits, on="hit_id", how="right")
 
             hits['filter_label'] = ~hits[energy_col].isnull()
