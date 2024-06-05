@@ -20,3 +20,25 @@ def test_process_uboone():
             continue
         plot.plot(data, target='semantic', how='true', filter='show')
         plot.plot(data, target='instance', how='true', filter='true')
+
+def test_process_dune_nutau():
+    """Test graph processing with DUNE beam nutau dataset"""
+    f = pynuml.io.File("/raid/nugraph/dune-nutau/NeutrinoML_r00140_s00000_ts814031.h5")
+    processor = pynuml.process.HitGraphProducer(
+        file=f,
+        semantic_labeller=pynuml.labels.StandardLabels(),
+        event_labeller=pynuml.labels.FlavorLabels(),
+        label_position=True)
+    plot = pynuml.plot.GraphPlot(
+        planes=["u", "v", "y"],
+        classes=pynuml.labels.StandardLabels().labels[:-1])
+    f.read_data(0, 100)
+    evts = f.build_evt()
+    for evt in evts:
+        _, data = processor(evt)
+        if not data:
+            continue
+        plot.plot(data, target="filter", how="true", filter="show")
+        plot.plot(data, target='semantic', how='true', filter='show')
+        plot.plot(data, target='instance', how='true', filter='true')
+        plot.plot(data, target="semantic", how="true", filter="show", xyz=True)
