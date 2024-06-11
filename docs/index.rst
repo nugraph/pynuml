@@ -1,4 +1,4 @@
-:github_url: https://github.com/vhewes/pynuml
+:github_url: https://github.com/nugraph/pynuml
 
 pynuml Documentation
 ====================
