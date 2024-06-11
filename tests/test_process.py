@@ -23,7 +23,7 @@ def test_process_uboone():
 
 def test_process_dune_nutau():
     """Test graph processing with DUNE beam nutau dataset"""
-    f = pynuml.io.File("/raid/nugraph/dune-nutau/NeutrinoML_r00140_s00000_ts814031.h5")
+    f = pynuml.io.File("/raid/nugraph/dune-nutau/test.evt.h5")
     processor = pynuml.process.HitGraphProducer(
         file=f,
         semantic_labeller=pynuml.labels.StandardLabels(),
