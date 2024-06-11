@@ -40,7 +40,7 @@ Installing for development
 
 If you're installing **pynuml** for development, you can install the numl Anaconda environment as outlined above, and then clone the repository directly and install it in editable mode::
 
-    git clone https://github.com/vhewes/pynuml
+    git clone https://github.com/nugraph/pynuml
     pip install --no-deps -e ./pynuml
 
 This will uninstall the conda release of pynuml installed by default as part of the numl environment, and override it with your local repository. If installed in editable mode, any changes made to the package will instantaneously be reflected when the module is imported in Python.

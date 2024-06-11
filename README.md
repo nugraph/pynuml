@@ -4,7 +4,7 @@ PyNuML is a Python toolkit for processing machine learning (ML) inputs from neut
 
 ## Parallel Event IO
 
-HDF5 files produced using the [NuML standard](https://github.com/vhewes/numl) contain tabular data structures representing events, simulated particles, energy depositions, detector hits and any other information defined by the user. For large datasets, accessing the rows of a table corresponding to a specific event based on event index can become prohibitively slow. PyNuML includes a metadata standard for efficient MPI parallel IO with large-scale physics event data. This approach enables very efficient processing of datasets using MPI parallel processing on HPC nodes, while also providing a simple and effective interface for interactive analysis.
+HDF5 files produced using the [NuML standard](https://github.com/nugraph/numl) contain tabular data structures representing events, simulated particles, energy depositions, detector hits and any other information defined by the user. For large datasets, accessing the rows of a table corresponding to a specific event based on event index can become prohibitively slow. PyNuML includes a metadata standard for efficient MPI parallel IO with large-scale physics event data. This approach enables very efficient processing of datasets using MPI parallel processing on HPC nodes, while also providing a simple and effective interface for interactive analysis.
 
 ## Semantic and instance labelling
 
@@ -51,7 +51,7 @@ pip install pynuml
 
 For those who wish to contribute to developing PyNuML, or work with the current development build, the repository can be cloned and installed in editable mode using pip:
 ```
-git clone https://github.com/vhewes/pynuml
+git clone https://github.com/nugraph/pynuml
 pip install -e ./pynuml
 ```
 
