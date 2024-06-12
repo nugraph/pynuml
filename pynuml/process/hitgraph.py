@@ -149,7 +149,7 @@ class HitGraphProducer(ProcessorBase):
 
         # spacepoint nodes
         if "position_x" in spacepoints.keys():
-            data["sp"].pos = spacepoints[[f"position_{c}" for c in ("x", "y", "z")]].values
+            data["sp"].pos = torch.tensor(spacepoints[[f"position_{c}" for c in ("x", "y", "z")]].values).float()
         else:
             data['sp'].num_nodes = spacepoints.shape[0]
 
