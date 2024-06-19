@@ -44,7 +44,7 @@ class HitGraphProducer(ProcessorBase):
     def columns(self) -> dict[str, list[str]]:
         groups = {
             'hit_table': ['hit_id','local_plane','local_time','local_wire','integral','rms'],
-            'spacepoint_table': ['spacepoint_id','hit_id']
+            'spacepoint_table': []
         }
         if self.semantic_labeller:
             groups['particle_table'] = ['g4_id','parent_id','type','momentum','start_process','end_process']
@@ -148,7 +148,10 @@ class HitGraphProducer(ProcessorBase):
         data['metadata'].event = e
 
         # spacepoint nodes
-        data['sp'].num_nodes = spacepoints.shape[0]
+        if "position_x" in spacepoints.keys():
+            data["sp"].pos = torch.tensor(spacepoints[[f"position_{c}" for c in ("x", "y", "z")]].values).float()
+        else:
+            data['sp'].num_nodes = spacepoints.shape[0]
 
         # draw graph edges
         for i, plane_hits in hits.groupby('local_plane'):
