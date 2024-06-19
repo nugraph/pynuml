@@ -51,6 +51,8 @@ class GraphPlot:
                 df[self._classes] = plane['x_semantic'].detach()
             if 'x_filter' in plane.keys():
                 df['x_filter'] = plane['x_filter'].detach()
+            if "i" in plane.keys():
+                df["i"] = plane["i"].numpy().astype(str)
 
             dfs.append(df)
         df = pd.concat(dfs)
@@ -117,9 +119,8 @@ class GraphPlot:
             elif how == 'pred':
                 opts = {
                     'title': 'Predicted instance labels',
-                    'labels': { 'x_instance': 'Instance label' },
-                    'color': 'x_instance',
-                    'symbol': 'x_semantic',
+                    'labels': { 'i': 'Instance label' },
+                    'color': 'i',
                     'color_discrete_map': self._cmap,
                 }
             else:
@@ -171,6 +172,7 @@ class GraphPlot:
         # set hover data
         opts['hover_data'] = {
             'y_semantic': True,
+            "y_instance": True,
             'wire': ':.1f',
             'time': ':.1f',
         }
@@ -185,9 +187,9 @@ class GraphPlot:
         if 'x_semantic' in df:
             opts['hover_data']['x_semantic'] = True
             opts['labels']['x_semantic'] = 'semantic prediction'
-        if 'x_instance' in df:
-            opts['hover_data']['x_instance'] = ':.4f'
-            opts['labels']['x_instance'] = 'instance prediction'
+        if 'i' in df:
+            opts['hover_data']['i'] = ':.4f'
+            opts['labels']['i'] = 'instance prediction'
         for col in self._truth_cols:
             if col in df:
                 opts['hover_data'][col] = True
