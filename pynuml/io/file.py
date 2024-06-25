@@ -1,6 +1,7 @@
 import sys
 from abc import ABC
 from typing import Any, Callable, Dict, List, Tuple
+import psutil
 
 import h5py
 import numpy as np
@@ -239,6 +240,10 @@ class File:
                 sys.exit(1)
 
     def read_seq_cnt(self) -> None:
+        # Dataset event_id.seq_cnt stores the event IDs sorted in an increasing
+        # order. There is no duplicated values and gaps may exist between any
+        # two consecutive elements. Note dataset event_id.seq_cnt in group
+        # self._parTable contains all event IDs with no gap.
         for group, datasets in self._groups:
             try:
                 # read an HDF5 dataset into a numpy array
@@ -377,7 +382,6 @@ class File:
 
         # This process is assigned event IDs of range from self._my_start to
         # (self._my_start + self._my_count - 1)
-        # print("my_start=",self._my_start," my_count=",self._my_count);
 
         # each process reads its share of dataset and stores it in a numpy
         # array
@@ -440,8 +444,6 @@ class File:
         comm.Scatter(bounds, lower_upper, root=0)
 
         # this process is assigned array indices from lower to upper
-        # print("group=",group," lower=",lower," upper=",upper," count=",upper-lower)
-
         lower = 0
         upper = 0
         if self._my_count > 0:
@@ -492,7 +494,6 @@ class File:
             # last receiver rank
             seq_cnt[recv_rank, 1] = dim - displ[recv_rank]
 
-            # print("starts=",self._starts," counts=",self._counts," displ=",displ," count=",count," seq_cnt=",seq_cnt )
             displ[:] *= 2
             count[:] = seq_cnt[:, 1] * 2
 
@@ -514,7 +515,6 @@ class File:
             upper = my_seq_cnt[0] + np.sum(self._seq_cnt[group][:, 1])
 
         # this process is assigned array indices from lower to upper
-        # print("group=",group," lower=",lower," upper=",upper," count=",upper-lower)
 
         return lower, upper
 
@@ -551,8 +551,6 @@ class File:
                 upper = self.binary_search_max(end,   all_evt_seq, dim)
                 upper += 1
                 self._evt_seq[group] = np.array(all_evt_seq[lower:upper], dtype=np.int64)
-
-            # print("read_data - group=",group,", lower=",lower," upper=",upper)
 
             # Iterate through all the datasets and read the subarray from index lower
             # to upper and store it into a dictionary with the names of group and
@@ -611,8 +609,6 @@ class File:
                 bnd_time += time_e - time_s
                 time_s = time_e
 
-            # print("read_data_all - group=",group,", lower=",lower," upper=",upper)
-
             # Iterate through all the datasets and read the subarray from index lower
             # to upper and store it into a dictionary with the names of group and
             # dataset as the key.
@@ -666,13 +662,15 @@ class File:
         if start is None: start = self._my_start
         if count is None: count = self._my_count
 
-        num_miss = 0
+        if self._use_seq_cnt:
+            # track the latest used index per group
+            idx_grp = dict.fromkeys(self._data.keys(), 0)
 
-        # track the latest used index per group
-        idx_grp = dict.fromkeys(self._data.keys(), 0)
+            # accumulate starting array index per group
+            idx_start = dict.fromkeys(self._data.keys(), 0)
 
-        # accumulate starting array index per group
-        idx_start = dict.fromkeys(self._data.keys(), 0)
+            # whether idx is presented in a group's _seq_cnt[:,0]
+            idx_found = dict.fromkeys(self._data.keys(), False)
 
         # Iterate through assigned event IDs
         for idx in range(int(start), int(start+count)):
@@ -680,14 +678,62 @@ class File:
             is_missing = True
             if self._use_seq_cnt:
                 for group in self._data.keys():
-                    if idx_grp[group] >= len(self._seq_cnt[group][:, 0]):
+                    idx_found[group] = False
+                    dim = self._seq_cnt[group].shape[0]
+
+                    # check against the max of this group's
+                    if idx > self._seq_cnt[group][dim-1, 0]:
                         continue
-                    if idx == self._seq_cnt[group][idx_grp[group], 0]:
-                        is_missing = False
-                        break
+
+                    # check and search for idx in _seq_cnt[group][:,0]
+                    if idx == idx_grp[group]:
+                        # this is most likely the case when building all graphs
+                        # for all events at once
+                        idx_found[group] = True
+                        idx_grp[group] = idx
+                    elif idx - idx_grp[group] <= 8:
+                        # linear search for idx in _seq_cnt[group][:,0]
+                        # if distance is less than 8, linear search is faster
+                        for jj in range(idx_grp[group], dim):
+                            if idx == self._seq_cnt[group][jj, 0]:
+                                idx_found[group] = True
+                                idx_grp[group] = jj
+                                break
+                            elif idx < self._seq_cnt[group][jj, 0]:
+                                break
+                    else:
+                        # binary search for idx in _seq_cnt[group][:,0]
+                        # Note there is no duplicated values in
+                        # _seq_cnt[group][:,0] and the values are sorted in an
+                        # increasing order
+                        low = idx_grp[group]
+                        high = dim
+                        while low < high:
+                            mid = (low + high) // 2
+                            if self._seq_cnt[group][mid, 0] < idx:
+                                low = mid + 1
+                            elif self._seq_cnt[group][mid, 0] > idx:
+                                high = mid
+                            else:
+                                idx_found[group] = True
+                                idx_grp[group] = mid
+                                break
+
+                    if idx_found[group]:
+                        if idx == start:
+                            # Calculate starting array index only necessary for
+                            # first idx. For 2nd and later, idx_start is
+                            # accumulated later
+                            idx_start[group] = self._seq_cnt[group][0:idx_grp[group], 1].sum()
+                        # skip self._parTable group, as it is not used to
+                        # determine whether idx is missing.
+                        if group != self._parTable:
+                            is_missing = False
             else:
                 for group in self._data.keys():
                     dim = len(self._evt_seq[group])
+                    # dataset event_id.seq may contain duplicated event IDs
+                    # IDs in this dataset are sorted in a monotonically non-decreasing order
                     lower = self.binary_search_min(idx, self._evt_seq[group], dim)
                     upper = self.binary_search_max(idx, self._evt_seq[group], dim) + 1
                     if lower < upper:
@@ -696,7 +742,6 @@ class File:
 
             # this idx is missing in all groups
             if is_missing:
-                num_miss += 1
                 continue
 
             # for each event seq ID, create a dictionary, ret
@@ -709,26 +754,37 @@ class File:
             for group in self._data.keys():
 
                 if self._use_seq_cnt:
-                    # self._seq_cnt[group][:, 0] is the event ID
-                    # self._seq_cnt[group][:, 1] is the number of elements
+                    # Note self._seq_cnt[group][:, 0] is the event ID
+                    # Note self._seq_cnt[group][:, 1] is the number of elements
 
-                    if idx_grp[group] >= len(self._seq_cnt[group][:, 0]) or idx < self._seq_cnt[group][idx_grp[group], 0]:
-                        # idx is missing from this group but may not in other groups
-                        # create an empty Pandas DataFrame
+                    if not idx_found[group]:
+                        # For idx is missing from this group but not in other
+                        # groups, create an empty Pandas DataFrame
                         dfs = []
                         for dataset in self._data[group].keys():
                             data_dataframe = pd.DataFrame(columns=self._cols(group, dataset))
                             dfs.append(data_dataframe)
                         ret[group] = pd.concat(dfs, axis="columns")
-                        # print("xxx",group," missing idx=",idx," _seq_cnt[0]=",self._seq_cnt[group][idx_grp[group], 0])
                         continue
 
-                    lower = idx_start[group]
-                    upper = self._seq_cnt[group][idx_grp[group], 1] + lower
+                    if group == self._parTable:
+                        # Special treatment for group self._parTable, as its
+                        # seq_cnt[:,1] contains all 1s and earlier increment of
+                        # idx_grp[group] may be skipped due to missing idx
+                        lower = idx_grp[group]
+                        upper = lower + 1
+                    else:
+                        lower = idx_start[group]
+                        upper = self._seq_cnt[group][idx_grp[group], 1] + lower
 
-                    # print("group=",group," idx=",idx," lower=",lower," upper=",upper)
-                    idx_start[group] += self._seq_cnt[group][idx_grp[group], 1]
-                    idx_grp[group] += 1
+                    # The range from lower to upper (exclusively) is subarray
+                    # indices of elements belonging to the same event ID, idx
+
+                    if count > 1:
+                        # increment start array indices to avoid searching the
+                        # already-done data
+                        idx_start[group] += self._seq_cnt[group][idx_grp[group], 1]
+                        idx_grp[group] += 1
 
                 else:
                     # Note self._evt_seq stores event ID values and is already sorted in
@@ -738,7 +794,6 @@ class File:
                     # Find the local start and end row indices for this event ID, idx
                     lower = self.binary_search_min(idx, self._evt_seq[group], dim)
                     upper = self.binary_search_max(idx, self._evt_seq[group], dim) + 1
-                    # print("For idx=",idx, " lower=",lower, " upper=",upper)
 
                 # dfs is a python list containing Pandas DataFrame objects
                 dfs = []
@@ -759,27 +814,48 @@ class File:
                             df[col] = df[col].str.decode('utf-8')
                     dfs.append(df)
 
-                # concate into the dictionary "ret" with group names as keys
+                # concatenate into the dictionary "ret" with group names as keys
                 ret[group] = pd.concat(dfs, axis="columns")
 
             # Add all dictionaries "ret" into a list.
             # Each of them corresponds to the data of one single event ID
             ret_list.append(ret)
 
-        # print("start=",start," count=",count," num miss IDs=",num_miss)
         return ret_list
 
     def process(self,
                 processor: Callable[[Event], Tuple[str, Any]],
                 out: Callable[[Any, str], None]) -> None:
         '''Process all events in this data partition'''
+        xproc = psutil.Process()
         comm = MPI.COMM_WORLD
         nprocs = comm.Get_size()
         rank = comm.Get_rank()
         if rank == 0:
             out.write_metadata(processor.metadata)
         self.read_data_all()
-        evt_list = self.build_evt()
-        for evt in evt_list:
-            name, data = processor(evt)
-            if data is not None: out(name, data)
+
+        verbose = False
+
+        # whether or not to build graphs one event at a time
+        build_one_evt_at_a_time = True
+
+        if build_one_evt_at_a_time == False:
+            evt_list = self.build_evt()
+            for evt in evt_list:
+                name, data = processor(evt)
+                if data is not None: out(name, data)
+            if verbose:
+                print("Build all events: MPI rank %3d Memory footprint = %8.1f MiB" %
+                    (rank, xproc.memory_info().rss/ 1024.0 ** 2))
+        else:
+            # Iterate through assigned event IDs
+            for idx in range(int(self._my_start), int(self._my_start+self._my_count)):
+                evt = self.build_evt(idx, 1)
+                if len(evt) > 0:
+                    name, data = processor(evt[0])
+                    if data is not None: out(name, data)
+            if verbose:
+                print("Build 1 event at a time: MPI rank %-3d Memory footprint = %8.1f MiB" %
+                    (rank, xproc.memory_info().rss/ 1024.0 ** 2))
+
